@@ -84,7 +84,7 @@ const data = Function(`"use strict"; return (${dataJson});`)();
 assert(data.CLASSES.length >= 2, "Expected at least 2 classes");
 assert(data.TRIAL_MODES.length >= 2, "Expected standard and quick trial modes");
 assert(data.RELICS.length >= 6, "Expected at least 6 relics");
-assert(data.UPGRADES.length >= 24, "Expected at least 24 upgrades");
+assert(data.UPGRADES.length >= 42, "Expected at least 42 upgrades after pool expansion");
 assert(data.EQUIPMENT_SLOTS.length >= 6, "Expected at least 6 equipment slots");
 assert(data.EQUIPMENT.length >= 12, "Expected at least 12 equipment samples");
 assert(data.EVENTS.length >= 6, "Expected at least 6 events");
@@ -98,9 +98,14 @@ data.RELICS.forEach(relic => {
   assert(!relic.tags.every(tag => relicClassTags.has(tag)), `Relic must not bind to a single class: ${relic.name}`);
 });
 
-["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "rewardQueue", "gearPopupCount", "shouldForceGearPopup", "openBestCandidateGear", "KeyE", "KeyW", "ArrowUp"].forEach(text => {
+["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "rewardQueue", "gearPopupCount", "shouldForceGearPopup", "isUpgradeAllowedForClass", "isUpgradeAvailable", "upgradeLevels", "skillNotice", "trackSkillStat", "showSkillNotice", "relicSkillStats", "gearSkillStats", "升级跳过", "openBestCandidateGear", "guaranteedShadowTimer", "relicEmpoweredAttack", "strengthSources", "wideSwordEvery", "thunderStaffArc", "KeyE", "KeyW", "ArrowUp"].forEach(text => {
   assert(js.includes(text), `Missing combat implementation marker: ${text}`);
 });
+
+assert(data.RELICS.every(item => item.skillName), "Every relic should expose a skillName");
+assert(data.EQUIPMENT.filter(item => item.skillName).length >= 6, "Expected at least 6 named equipment skills");
+assert(data.UPGRADES.some(item => item.type === "basic" && item.maxLevel === 3), "Expected stackable basic upgrades");
+assert(data.UPGRADES.some(item => item.type === "advanced" && item.requiresTags), "Expected tag-gated advanced upgrades");
 
 ["不再沿用塔防", "刷宝BD", "职业能力提升触发途径", "8 分钟固定节奏", "MVP数据目标", "下一版网页原型验收标准", "4 分钟快速测试模式"].forEach(text => {
   assert(design.includes(text), `Missing design note: ${text}`);
@@ -142,6 +147,9 @@ function createElement(tagName = "div") {
     appendChild(child) {
       this.children.push(child);
       return child;
+    },
+    insertAdjacentHTML(position, html) {
+      this.innerHTML += html;
     },
     querySelectorAll() {
       return [];

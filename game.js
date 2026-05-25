@@ -38,6 +38,7 @@ const state = {
   gearNotice: null,
   loot: [],
   build: [],
+  upgradeLevels: {},
   formedTags: [],
   pendingUpgrades: [],
   equippedGear: {},
@@ -59,6 +60,17 @@ const state = {
   activeRelicCooldowns: {},
   bellWindow: 0,
   gourdTimer: 0,
+  guaranteedShadowTimer: 0,
+  relicBoostTimer: 0,
+  relicThunderBoost: 0,
+  relicEmpoweredAttack: 0,
+  swordPierceHits: 0,
+  swordCastCount: 0,
+  swordRingTimer: 0,
+  strengthSources: [],
+  relicSkillStats: {},
+  gearSkillStats: {},
+  skillNotice: { relic: null, gear: [] },
   scheduleFired: [],
   warningText: "",
   warningTimer: 0,
@@ -92,7 +104,14 @@ function createStats() {
     thunderBurst: 0,
     critCleave: 0,
     critRefund: 0,
-    overhealShield: 0
+    overhealShield: 0,
+    wideSwordEvery: 0,
+    thunderStaffArc: 0,
+    swordRingShadow: 0,
+    paralyzeDamage: 0,
+    smartParalyze: 0,
+    spiritCharmCharge: 0,
+    relicJadeEmpower: 0
   };
 }
 
@@ -122,6 +141,13 @@ function emptyStats() {
     critCleave: 0,
     critRefund: 0,
     overhealShield: 0,
+    wideSwordEvery: 0,
+    thunderStaffArc: 0,
+    swordRingShadow: 0,
+    paralyzeDamage: 0,
+    smartParalyze: 0,
+    spiritCharmCharge: 0,
+    relicJadeEmpower: 0,
     maxHp: 0,
     lowHpDamage: 0
   };
@@ -171,6 +197,45 @@ function getRelic(id) {
   return DATA.RELICS.find(item => item.id === id);
 }
 
+function addStrengthSource(text) {
+  if (!text || state.strengthSources.includes(text)) return;
+  state.strengthSources.unshift(text);
+  state.strengthSources = state.strengthSources.slice(0, 10);
+}
+
+function trackSkillStat(kind, key, label, amount = 1) {
+  const bucket = kind === "relic" ? state.relicSkillStats : state.gearSkillStats;
+  if (!bucket[key]) bucket[key] = { label, count: 0, impact: 0 };
+  bucket[key].count += 1;
+  bucket[key].impact += amount;
+}
+
+function showSkillNotice(kind, key, text) {
+  const now = state.time;
+  if (kind === "relic") {
+    state.skillNotice.relic = { key, text, count: (state.skillNotice.relic?.key === key ? state.skillNotice.relic.count + 1 : 1), life: 2.2, time: now };
+    return;
+  }
+  const existing = state.skillNotice.gear.find(item => item.key === key);
+  if (existing && now - existing.time < 3) {
+    existing.count += 1;
+    existing.life = 1.8;
+    existing.time = now;
+    return;
+  }
+  state.skillNotice.gear.unshift({ key, text, count: 1, life: 1.8, time: now });
+  state.skillNotice.gear = state.skillNotice.gear.slice(0, 2);
+}
+
+function tickSkillNotice(dt) {
+  if (state.skillNotice.relic) {
+    state.skillNotice.relic.life -= dt;
+    if (state.skillNotice.relic.life <= 0) state.skillNotice.relic = null;
+  }
+  state.skillNotice.gear.forEach(item => { item.life -= dt; });
+  state.skillNotice.gear = state.skillNotice.gear.filter(item => item.life > 0).slice(0, 2);
+}
+
 function formatTime(seconds) {
   const m = String(Math.floor(seconds / 60)).padStart(2, "0");
   const s = String(Math.floor(seconds % 60)).padStart(2, "0");
@@ -215,6 +280,7 @@ function resetRun() {
   state.mouseMove = { active: false, x: canvas.width / 2, y: canvas.height / 2 };
   state.loot = [];
   state.build = [];
+  state.upgradeLevels = {};
   state.formedTags = [];
   state.pendingUpgrades = [];
   state.candidateGear = [];
@@ -234,12 +300,28 @@ function resetRun() {
   });
   state.bellWindow = 0;
   state.gourdTimer = 0;
+  state.guaranteedShadowTimer = 0;
+  state.relicBoostTimer = 0;
+  state.relicThunderBoost = 0;
+  state.relicEmpoweredAttack = 0;
+  state.swordPierceHits = 0;
+  state.swordCastCount = 0;
+  state.swordRingTimer = 0;
+  state.strengthSources = [];
+  state.relicSkillStats = {};
+  state.gearSkillStats = {};
+  state.skillNotice = { relic: null, gear: [] };
   state.scheduleFired = [];
   state.warningText = "";
   state.warningTimer = 0;
   state.judgementTimer = 0;
   clearUpgradeChoices();
   hideGearModal();
+  const candidate = {};
+  if (candidate.mechanic) {
+    addStrengthSource(`${candidate.name}：${candidate.mechanic}`);
+    showGearNotice(`获得机制：${candidate.mechanic}`);
+  }
   hideSummaryModal();
   addLoot("试炼开始", `${state.selectedClass.name}进入${state.difficulty.name} · ${state.trialMode.name}。`, "good");
   recordRunEvent("开局", `${state.selectedClass.name} · ${state.difficulty.name} · ${state.trialMode.name}`);
@@ -319,12 +401,14 @@ function weightedUpgrades() {
   const counts = getTagCounts();
   const classTag = state.selectedClass.name;
   return [...DATA.UPGRADES]
-    .filter(item => !state.build.some(picked => picked.id === item.id))
+    .filter(item => isUpgradeAvailable(item))
+    .filter(item => isUpgradeAllowedForClass(item))
     .map(item => {
-      let weight = 1;
+      let weight = item.type === "basic" ? 1.15 : item.type === "advanced" ? 0.85 : 1;
       if (item.tags.includes(classTag)) weight += 3;
       item.tags.forEach(tag => {
         weight += counts[tag] || 0;
+        if ((counts[tag] || 0) >= 2) weight += 2;
       });
       if (state.equippedRelics.some(id => DATA.RELICS.find(relic => relic.id === id)?.tags.some(tag => item.tags.includes(tag)))) {
         weight += 1;
@@ -333,19 +417,49 @@ function weightedUpgrades() {
     });
 }
 
+function isUpgradeAvailable(upgrade) {
+  const level = state.upgradeLevels[upgrade.id] || 0;
+  const maxLevel = upgrade.maxLevel || 1;
+  if (level >= maxLevel) return false;
+  if (upgrade.type !== "basic" && level > 0) return false;
+  if (upgrade.requiresTags?.length) {
+    const counts = getTagCounts();
+    return upgrade.requiresTags.some(tag => (counts[tag] || 0) >= 3);
+  }
+  return true;
+}
+
+function isUpgradeAllowedForClass(upgrade) {
+  const classTags = DATA.CLASSES.map(item => item.name);
+  const blockedClassTags = classTags.filter(tag => tag !== state.selectedClass.name);
+  return !upgrade.tags.some(tag => blockedClassTags.includes(tag));
+}
+
 function pickUpgrades() {
-  const pool = weightedUpgrades();
+  let pool = weightedUpgrades();
   const picked = [];
+  const classPool = pool.filter(entry => entry.item.tags.includes(state.selectedClass.name));
+  if (classPool.length) {
+    const first = takeWeighted(classPool);
+    picked.push(first.item);
+    pool = pool.filter(entry => entry.item.id !== first.item.id);
+  }
   while (picked.length < 3 && pool.length) {
-    const total = pool.reduce((sum, entry) => sum + entry.weight, 0);
-    let roll = Math.random() * total;
-    const index = pool.findIndex(entry => {
-      roll -= entry.weight;
-      return roll <= 0;
-    });
-    picked.push(pool.splice(Math.max(0, index), 1)[0].item);
+    const next = takeWeighted(pool);
+    picked.push(next.item);
+    pool = pool.filter(entry => entry.item.id !== next.item.id);
   }
   return picked;
+}
+
+function takeWeighted(pool) {
+  const total = pool.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = Math.random() * total;
+  const index = pool.findIndex(entry => {
+    roll -= entry.weight;
+    return roll <= 0;
+  });
+  return pool[Math.max(0, index)];
 }
 
 function clearUpgradeChoices() {
@@ -371,7 +485,13 @@ function processRewardQueue() {
   state.activeReward = reward;
   state.paused = true;
   if (reward.type === "upgrade") {
-    state.pendingUpgrades = reward.upgrades;
+    state.pendingUpgrades = pickUpgrades();
+    if (!state.pendingUpgrades.length) {
+      state.activeReward = null;
+      addLoot("升级跳过", "本局可选升级已全部获得，继续试炼。");
+      processRewardQueue();
+      return;
+    }
     renderUpgradeChoices();
     showUpgradeModal();
     updateUi();
@@ -400,12 +520,11 @@ function completeReward(type) {
 }
 
 function offerUpgrades(options = {}) {
-  const upgrades = pickUpgrades();
   if (options.pause) {
-    enqueueReward({ type: "upgrade", upgrades });
+    enqueueReward({ type: "upgrade" });
     return;
   }
-  state.pendingUpgrades = upgrades;
+  state.pendingUpgrades = pickUpgrades();
   renderUpgradeChoices();
 }
 
@@ -414,6 +533,14 @@ function renderUpgradeChoices() {
   const modalContainer = document.getElementById("modalUpgradeChoices");
   container.innerHTML = "";
   modalContainer.innerHTML = "";
+  if (!state.pendingUpgrades.length) {
+    const empty = document.createElement("div");
+    empty.className = "choice-card";
+    empty.innerHTML = `<strong>升级已满</strong><span>本局可选升级已全部获得。</span>`;
+    container.appendChild(empty);
+    modalContainer.appendChild(empty.cloneNode ? empty.cloneNode(true) : empty);
+    return;
+  }
   state.pendingUpgrades.forEach(upgrade => {
     const card = createUpgradeButton(upgrade);
     const modalCard = createUpgradeButton(upgrade);
@@ -425,7 +552,10 @@ function renderUpgradeChoices() {
 function createUpgradeButton(upgrade) {
   const card = document.createElement("button");
   card.className = "choice-card";
-  card.innerHTML = `<strong>${upgrade.name}</strong><span>${upgrade.desc}</span><br>${upgrade.tags.map(tag => `<span class="tag">${tag}</span>`).join("")}`;
+  const nextLevel = (state.upgradeLevels[upgrade.id] || 0) + 1;
+  const levelText = upgrade.maxLevel ? ` I/II/III`.split("/")[nextLevel - 1] || ` Lv.${nextLevel}` : "";
+  const typeName = { basic: "基础强化", mechanic: "机制升级", advanced: "成型进阶" }[upgrade.type] || "升级";
+  card.innerHTML = `<strong>${upgrade.name}${levelText}</strong><span>${typeName} · ${upgrade.desc}</span><br>${upgrade.tags.map(tag => `<span class="tag">${tag}</span>`).join("")}`;
   card.addEventListener("click", () => applyUpgrade(upgrade));
   return card;
 }
@@ -440,7 +570,9 @@ function hideUpgradeModal() {
 
 function applyUpgrade(upgrade) {
   if (!state.pendingUpgrades.some(item => item.id === upgrade.id)) return;
-  state.build.push(upgrade);
+  const nextLevel = (state.upgradeLevels[upgrade.id] || 0) + 1;
+  state.upgradeLevels[upgrade.id] = nextLevel;
+  state.build.push({ ...upgrade, level: nextLevel });
   Object.entries(upgrade.effects).forEach(([key, value]) => {
     if (key === "maxHp") {
       state.upgradeStats.maxHp = (state.upgradeStats.maxHp || 0) + value;
@@ -476,6 +608,13 @@ function rerollChoices() {
   }
   state.rerollStone -= 1;
   state.pendingUpgrades = pickUpgrades();
+  if (!state.pendingUpgrades.length) {
+    clearUpgradeChoices();
+    addLoot("升级跳过", "本局可选升级已全部获得，继续试炼。");
+    completeReward("upgrade");
+    updateUi();
+    return;
+  }
   renderUpgradeChoices();
   addLoot("刷新选择", "本局升级选项已刷新。");
   updateUi();
@@ -564,6 +703,25 @@ function addRelicPulse(id, x = state.player.x, y = state.player.y) {
   };
   const visual = visuals[id] || { color: "#f3efe1", r: 120, label: "法宝" };
   addEffect({ kind: "relic", x, y, r: visual.r, life: 0.58, color: visual.color, label: visual.label });
+  const relic = getRelic(id);
+  if (relic) {
+    const label = `${relic.name}：${relic.skillName || visual.label}`;
+    trackSkillStat("relic", id, label);
+    showSkillNotice("relic", id, label);
+    addStrengthSource(label);
+  }
+}
+
+function activateRelicCombatBoost(id) {
+  state.relicBoostTimer = 2;
+  if (state.selectedClass.id === "thunder") state.relicThunderBoost = 1;
+  if (state.stats.relicJadeEmpower) {
+    state.relicEmpoweredAttack = 1;
+    addStrengthSource("灵宝玉：自动法宝触发后强化下次职业普攻");
+    trackSkillStat("gear", "relic_jade", "灵宝玉：灵宝共振");
+    showSkillNotice("gear", "relic_jade", "灵宝玉：灵宝共振");
+  }
+  addFloatText(state.player.x, state.player.y - 46, state.selectedClass.id === "thunder" ? "雷击+1跳" : "穿透+1", "#9fd7ff");
 }
 
 function fireAtNearest() {
@@ -588,6 +746,13 @@ function fireSword() {
   const dy = target.y - state.player.y;
   const len = Math.hypot(dx, dy) || 1;
   const crit = Math.random() < state.stats.critRate;
+  const guaranteedShadow = state.guaranteedShadowTimer > 0;
+  const relicBoost = state.relicBoostTimer > 0 && state.selectedClass.id === "sword";
+  const empowered = state.relicEmpoweredAttack > 0;
+  state.swordCastCount += 1;
+  const wideSword = (state.stats.wideSwordEvery > 0 && state.swordCastCount % state.stats.wideSwordEvery === 0) || empowered;
+  if (guaranteedShadow) state.guaranteedShadowTimer = 0;
+  if (empowered) state.relicEmpoweredAttack = 0;
   state.attackSeq += 1;
   state.projectiles.push({
     kind: "sword",
@@ -596,16 +761,25 @@ function fireSword() {
     vx: (dx / len) * 620,
     vy: (dy / len) * 620,
     life: 0.72,
-    radius: crit ? 6 : 5,
-    damage: getClassDamage(target) * (crit ? state.stats.critDamage : 1),
+    radius: wideSword ? 10 : crit ? 6 : 5,
+    damage: getClassDamage(target) * (crit ? state.stats.critDamage : 1) * (empowered ? 1.35 : 1),
     color: crit ? "#fff0a6" : state.selectedClass.color,
-    pierceLeft: state.stats.pierce,
+    pierceLeft: state.stats.pierce + (relicBoost ? 1 : 0) + (wideSword ? 1 : 0),
     hit: new Set(),
     crit,
+    forceShadow: guaranteedShadow,
+    wideSword,
     returnBlade: state.stats.returnBlade > 0,
     returned: false,
     trailTimer: 0
   });
+  if (relicBoost) addStrengthSource("法宝触发后飞剑穿透 +1");
+  if (wideSword) {
+    addStrengthSource("青锋剑：第 5 次飞剑变为宽剑气");
+    trackSkillStat("gear", "qf_sword", "青锋剑：宽剑气");
+    showSkillNotice("gear", "qf_sword", "青锋剑：宽剑气");
+    addSlashEffect(target.x, target.y, Math.atan2(dy, dx), "#d8b45a", "宽剑气");
+  }
   if (crit) {
     addSlashEffect(target.x, target.y, Math.atan2(dy, dx), "#fff0a6", "暴击剑影");
   }
@@ -618,7 +792,12 @@ function fireThunder() {
   let source = state.player;
   let target = first;
   let damage = getClassDamage(target);
-  const jumps = 1 + state.stats.chainJumps;
+  const boostedJump = state.relicThunderBoost > 0 || (state.relicBoostTimer > 0 && state.selectedClass.id === "thunder");
+  const jumps = 1 + state.stats.chainJumps + (boostedJump ? 1 : 0);
+  if (boostedJump) {
+    state.relicThunderBoost = 0;
+    addStrengthSource("法宝触发后雷击额外跳跃 +1");
+  }
   for (let i = 0; i < jumps && target; i += 1) {
     damageEnemy(target, damage, "thunder");
     target.hitByThunder += 1;
@@ -635,15 +814,39 @@ function fireThunder() {
     hit.add(target);
     source = target;
     damage *= Math.max(0.25, 1 - state.stats.chainFalloff);
-    target = nearestEnemy(source, hit);
+    if (i === jumps - 1 || !nearestEnemy(source, hit)) {
+      addEffect({ kind: "blast", x: source.x, y: source.y, r: state.stats.thunderStaffArc ? 72 : 58, damage: getClassDamage(source) * (state.stats.thunderStaffArc ? 0.35 : 0.22), life: 0.24, color: "#60b6ff", label: state.stats.thunderStaffArc ? "电弧" : "终跳" });
+      addStrengthSource("雷击最后一跳小范围爆炸");
+      if (state.stats.thunderStaffArc) {
+        trackSkillStat("gear", "thunder_staff", "引雷杖：余雷电弧");
+        showSkillNotice("gear", "thunder_staff", "引雷杖：余雷电弧");
+      }
+    }
+    target = state.stats.smartParalyze
+      ? nearestParalyzedEnemy(source, hit) || nearestEnemy(source, hit)
+      : nearestEnemy(source, hit);
   }
 }
 
+function nearestParalyzedEnemy(from = state.player, ignored = new Set()) {
+  return state.enemies
+    .filter(enemy => !ignored.has(enemy) && enemy.slow > 0)
+    .map(enemy => ({ enemy, dist: distance(enemy, from) }))
+    .sort((a, b) => a.dist - b.dist)[0]?.enemy;
+}
+
 function damageEnemy(enemy, amount, source) {
-  enemy.hp -= amount;
+  const paralyzeBonus = enemy.slow > 0 ? state.stats.paralyzeDamage || 0 : 0;
+  if (paralyzeBonus > 0) {
+    trackSkillStat("gear", "storm_robe", "雷纹戒：雷纹导引");
+    showSkillNotice("gear", "storm_robe", "雷纹戒：雷纹导引");
+  }
+  enemy.hp -= amount * (1 + paralyzeBonus);
   if (enemy.hp <= 0) {
     if (state.stats.thunderPool && source === "thunder") {
-      addEffect({ kind: "zone", x: enemy.x, y: enemy.y, r: 62, damage: getClassDamage(enemy) * 0.18, life: 2.2, tick: 0, color: "#60b6ff" });
+      const activePools = state.effects.filter(effect => effect.kind === "zone" && effect.label === "雷池");
+      if (activePools.length >= 2) activePools[0].life = 0;
+      addEffect({ kind: "zone", x: enemy.x, y: enemy.y, r: 62, damage: getClassDamage(enemy) * 0.18, life: 3.2, tick: 0, color: "#60b6ff", label: "雷池" });
     }
     killEnemy(enemy, source);
   }
@@ -652,6 +855,11 @@ function damageEnemy(enemy, amount, source) {
 function killEnemy(enemy, source = "attack") {
   if (!state.enemies.includes(enemy)) return;
   state.kills += 1;
+  if (source === "swordCrit") {
+    state.guaranteedShadowTimer = 3;
+    addStrengthSource("剑修暴击击杀：3 秒内下一次飞剑必定剑影");
+    addFloatText(enemy.x, enemy.y - 28, "剑影预备", "#fff0a6");
+  }
   if (enemy.id === "storm_boss") state.bossKilled = true;
   state.xp += enemy.xp * 6 * (1 + state.stats.xpGain);
   const heal = state.maxHp * state.stats.leech;
@@ -705,6 +913,9 @@ function createRunResult(reason, reward) {
     mainBuild: getMainBuildTag(),
     output: getMainBuildTag() === "未成型" ? state.selectedClass.name : getMainBuildTag(),
     gearHighlights,
+    strengthSources: [...state.strengthSources],
+    relicSkillStats: { ...state.relicSkillStats },
+    gearSkillStats: { ...state.gearSkillStats },
     nextStep
   };
 }
@@ -737,6 +948,10 @@ function receiveEquipment(equipment) {
     if (!state.gearBank.some(item => item.uid === equipment.uid)) state.gearBank.unshift(equipment);
     state.equippedGear[equipment.slot] = equipment;
     recomputeGearStats();
+    if (equipment.mechanic) {
+      addStrengthSource(`${equipment.name}：${equipment.mechanic}`);
+      showGearNotice(`获得机制：${equipment.mechanic}`);
+    }
     addLoot(equipment.name, `${equipment.quality}${equipment.slot}自动装备。`, "good");
     recordRunEvent("装备", `获得并装备 ${equipment.name}`);
   } else {
@@ -865,6 +1080,10 @@ function replaceWithCandidate(uid = state.currentCandidateId) {
   if (previous) state.candidateGear.unshift(previous);
   state.currentCandidateId = null;
   recomputeGearStats();
+  if (candidate.mechanic) {
+    addStrengthSource(`${candidate.name}：${candidate.mechanic}`);
+    showGearNotice(`获得机制：${candidate.mechanic}`);
+  }
   hideGearModal();
   addLoot("装备替换", `${candidate.slot}替换为${candidate.name}。`, "good");
   recordRunEvent("装备", `替换 ${candidate.slot} 为 ${candidate.name}`);
@@ -1031,6 +1250,7 @@ function triggerActiveRelic(id) {
   }
   if (id === "bell") {
     addRelicPulse("bell");
+    activateRelicCombatBoost("bell");
     state.enemies.forEach(enemy => {
       const dx = state.player.x - enemy.x;
       const dy = state.player.y - enemy.y;
@@ -1067,16 +1287,34 @@ function updateProjectiles(dt) {
     state.enemies.forEach(enemy => {
       if (projectile.dead || projectile.hit.has(enemy)) return;
       if (distance(projectile, enemy) > enemy.radius + projectile.radius) return;
-      damageEnemy(enemy, projectile.damage, "sword");
+      damageEnemy(enemy, projectile.damage, projectile.crit ? "swordCrit" : "sword");
       projectile.hit.add(enemy);
       projectile.pierceLeft -= 1;
-      if (projectile.crit && state.stats.shadow) {
+      if (projectile.kind === "sword") {
+        state.swordPierceHits += 1;
+        if (state.swordPierceHits % 3 === 0) {
+          addEffect({ kind: "blast", x: enemy.x, y: enemy.y, r: 70, damage: projectile.damage * 0.38, life: 0.22, color: "#d8b45a", label: "剑气" });
+          addStrengthSource("剑修穿透成型：每穿透 3 个敌人释放小范围剑气");
+        }
+      }
+      if ((projectile.crit && state.stats.shadow) || projectile.forceShadow) {
         const angle = Math.atan2(enemy.y - projectile.y, enemy.x - projectile.x);
-        addSlashEffect(enemy.x, enemy.y, angle, "#fff0a6", "追影");
+        addSlashEffect(enemy.x, enemy.y, angle, "#fff0a6", projectile.forceShadow ? "必定剑影" : "追影");
         const extra = nearestEnemy(enemy, new Set([enemy]));
         if (extra) {
           addEffect({ kind: "line", x1: enemy.x, y1: enemy.y, x2: extra.x, y2: extra.y, life: 0.2, color: "#fff0a6" });
           damageEnemy(extra, projectile.damage * 0.45, "shadow");
+        }
+      }
+      if (projectile.crit && state.stats.swordRingShadow && state.swordRingTimer <= 0) {
+        const extra = nearestEnemy(enemy, new Set([enemy]));
+        if (extra) {
+          addSlashEffect(extra.x, extra.y, Math.atan2(extra.y - enemy.y, extra.x - enemy.x), "#f3efe1", "剑心戒");
+          damageEnemy(extra, projectile.damage * 0.32, "swordRing");
+          addStrengthSource("剑心戒：暴击额外生成小剑影");
+          trackSkillStat("gear", "sword_ring", "剑心戒：剑心小影");
+          showSkillNotice("gear", "sword_ring", "剑心戒：剑心小影");
+          state.swordRingTimer = 1;
         }
       }
       if (projectile.crit && state.stats.critCleave) {
@@ -1170,8 +1408,13 @@ function updatePickups(dt) {
       }
       if (item.type === "relic") {
         Object.keys(state.relicTimers).forEach(id => {
-          state.relicTimers[id] = Math.max(0, state.relicTimers[id] - 1.2);
+          state.relicTimers[id] = Math.max(0, state.relicTimers[id] - (state.stats.spiritCharmCharge ? 2.4 : 1.2));
         });
+        if (state.stats.spiritCharmCharge) {
+          addStrengthSource("聚灵符：拾取法宝灵息额外缩短法宝冷却");
+          trackSkillStat("gear", "spirit_charm", "聚灵符：灵息回流");
+          showSkillNotice("gear", "spirit_charm", "聚灵符：灵息回流");
+        }
         addFloatText(state.player.x, state.player.y - 30, "+灵息", "#9fd7ff");
       }
       item.dead = true;
@@ -1213,6 +1456,7 @@ function updateRelics(dt) {
       state.hp = Math.min(state.maxHp, state.hp + state.maxHp * 0.25);
       state.gourdTimer = getRelic("gourd").cooldown;
       addRelicPulse("gourd");
+      activateRelicCombatBoost("gourd");
       addEffect({ kind: "circle", x: state.player.x, y: state.player.y, r: 110, life: 0.45, color: "#7fc96d" });
       addLoot("回春葫芦", "低血触发回复。", "good");
     }
@@ -1225,6 +1469,7 @@ function updateRelics(dt) {
     state.relicTimers[id] = relic.cooldown;
     if (id === "qf_box") {
       addRelicPulse("qf_box");
+      activateRelicCombatBoost("qf_box");
       for (let i = -1; i <= 1; i += 1) {
         const angle = Math.atan2((nearestEnemy()?.y || state.player.y) - state.player.y, (nearestEnemy()?.x || state.player.x + 1) - state.player.x) + i * 0.18;
         state.projectiles.push({
@@ -1245,11 +1490,13 @@ function updateRelics(dt) {
     }
     if (id === "thunder_pearl") {
       addRelicPulse("thunder_pearl");
+      activateRelicCombatBoost("thunder_pearl");
       fireThunder();
       addLoot("引雷珠", "法宝雷击补充清怪。");
     }
     if (id === "ice_mirror") {
       addRelicPulse("ice_mirror");
+      activateRelicCombatBoost("ice_mirror");
       state.enemies.forEach(enemy => {
         if (distance(enemy, state.player) < 220) enemy.slow = Math.max(enemy.slow, 2.5);
       });
@@ -1260,6 +1507,7 @@ function updateRelics(dt) {
       const target = [...state.enemies].sort((a, b) => b.hp - a.hp)[0];
       if (target) {
         addRelicPulse("fire_pearl", target.x, target.y);
+        activateRelicCombatBoost("fire_pearl");
         addEffect({ kind: "blast", x: target.x, y: target.y, r: 96, damage: getClassDamage(target) * 1.8, life: 0.22, color: "#d86854" });
         addLoot("炼火珠", "高血量目标附近发生爆燃。");
       }
@@ -1278,6 +1526,9 @@ function update(dt) {
   state.spawnTimer -= dt;
   state.attackTimer -= dt;
   state.judgementTimer -= dt;
+  state.guaranteedShadowTimer = Math.max(0, state.guaranteedShadowTimer - dt);
+  state.relicBoostTimer = Math.max(0, state.relicBoostTimer - dt);
+  state.swordRingTimer = Math.max(0, state.swordRingTimer - dt);
 
   updateMovement(dt);
   updateSchedule();
@@ -1310,6 +1561,7 @@ function update(dt) {
   updatePickups(dt);
   updateProjectiles(dt);
   updateFloatTexts(dt);
+  tickSkillNotice(dt);
   state.playerFlash = Math.max(0, state.playerFlash - dt);
   state.effects.forEach(effect => {
     if ((effect.kind === "zone" || effect.kind === "blast") && effect.damage) {
@@ -1523,6 +1775,24 @@ function draw() {
     ctx.font = "18px sans-serif";
     ctx.fillText(state.warningText, canvas.width / 2, 43);
   }
+
+  const notices = [
+    ...(state.skillNotice.relic ? [{ ...state.skillNotice.relic, type: "relic" }] : []),
+    ...state.skillNotice.gear.map(item => ({ ...item, type: "gear" }))
+  ];
+  notices.forEach((item, index) => {
+    const y = canvas.height - 92 + index * 30;
+    ctx.globalAlpha = Math.min(1, item.life);
+    ctx.fillStyle = item.type === "relic" ? "rgba(96,182,255,0.2)" : "rgba(216,180,90,0.18)";
+    ctx.fillRect(canvas.width / 2 - 180, y - 18, 360, 24);
+    ctx.strokeStyle = item.type === "relic" ? "#60b6ff" : "#d8b45a";
+    ctx.strokeRect(canvas.width / 2 - 180, y - 18, 360, 24);
+    ctx.fillStyle = "#f3efe1";
+    ctx.font = "13px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${item.text}${item.count > 1 ? ` x${item.count}` : ""}`, canvas.width / 2, y - 2);
+    ctx.globalAlpha = 1;
+  });
 }
 
 let lastFrame = performance.now();
@@ -1622,6 +1892,8 @@ function renderEquipment() {
     card.innerHTML = item
       ? `<strong>${slot} · ${item.name}</strong><span>${item.quality} · 评分 ${scoreFit(item)} · ${item.main}</span><span>${item.special}</span>`
       : `<strong>${slot}</strong><span>空位，获得同部位装备后自动穿戴。</span>`;
+    if (item?.skillName) card.insertAdjacentHTML("beforeend", `<span>装备技：${item.skillName} · ${item.triggerText || "条件触发"}</span>`);
+    if (item?.mechanic) card.insertAdjacentHTML("beforeend", `<span>机制：${item.mechanic}</span>`);
     container.appendChild(card);
   });
 }
@@ -1638,6 +1910,8 @@ function renderCandidateGear() {
     const card = document.createElement("button");
     card.className = "loot-card";
     card.innerHTML = `<strong>${item.name}</strong><span>${item.quality}${item.slot} · ${getGearRecommendation(item, current)} · 评分 ${scoreFit(item)}</span>`;
+    if (item.skillName) card.insertAdjacentHTML("beforeend", `<span>装备技：${item.skillName} · ${item.triggerText || "条件触发"}</span>`);
+    if (item.mechanic) card.insertAdjacentHTML("beforeend", `<span>机制：${item.mechanic}</span>`);
     card.addEventListener("click", () => openCandidateGear(item.uid));
     container.appendChild(card);
   });
@@ -1658,6 +1932,8 @@ function gearCardHtml(title, item) {
       <span>${item.quality}${item.slot} · 适配评分 ${scoreFit(item)}</span>
       <span>${item.main}</span>
       <span>${(item.sub || []).join(" / ")}</span>
+      ${item.skillName ? `<span>装备技：${item.skillName} · ${item.triggerText || "条件触发"}</span>` : ""}
+      ${item.mechanic ? `<span>机制：${item.mechanic}</span>` : ""}
       <span>${item.special}</span>
     </div>
   `;
@@ -1707,9 +1983,21 @@ function showSummaryModal() {
   const events = state.runEvents.length
     ? state.runEvents.map(item => `${item.time} ${item.type}: ${item.text}`).join("<br>")
     : "暂无关键事件";
+  const strengthSources = state.result.strengthSources?.length
+    ? state.result.strengthSources.map(item => `• ${item}`).join("<br>")
+    : "暂无明确机制来源";
+  const relicStats = Object.values(state.result.relicSkillStats || {}).length
+    ? Object.values(state.result.relicSkillStats).map(item => `${item.label}：触发 ${item.count} 次`).join("<br>")
+    : "本局暂无法宝技统计";
+  const gearStats = Object.values(state.result.gearSkillStats || {}).length
+    ? Object.values(state.result.gearSkillStats).map(item => `${item.label}：触发 ${item.count} 次`).join("<br>")
+    : "本局暂无装备技统计";
   document.getElementById("summaryBody").innerHTML = `
     <div class="equipment-card"><strong>战斗结果</strong><span>存活 ${state.result.survival} · 击杀 ${state.result.kills} · 职业经验 +${state.result.classXp}</span></div>
     <div class="equipment-card"><strong>构筑复盘</strong><span>主流派 ${state.result.mainBuild} · 最高输出来源 ${state.result.output}</span></div>
+    <div class="equipment-card"><strong>本局变强来源</strong><span>${strengthSources}</span></div>
+    <div class="equipment-card"><strong>法宝技统计</strong><span>${relicStats}</span></div>
+    <div class="equipment-card"><strong>装备技统计</strong><span>${gearStats}</span></div>
     <div class="equipment-card"><strong>装备亮点</strong><span>${gear}</span></div>
     <div class="equipment-card"><strong>关键节点</strong><span>${events}</span></div>
   `;
@@ -1734,7 +2022,7 @@ function renderRelicStatus() {
       : cd > 0 ? `${Math.ceil(cd)} 秒` : "即将触发";
     const card = document.createElement("div");
     card.className = `relic-card ${cd <= 0 ? "ready" : ""}`;
-    card.innerHTML = `<strong>${relic.name}</strong><span>${relic.type} · ${label}</span>`;
+    card.innerHTML = `<strong>${relic.name}</strong><span>${relic.skillName || relic.type} · ${label}</span>`;
     container.appendChild(card);
   });
 }
