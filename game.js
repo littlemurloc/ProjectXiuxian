@@ -33,6 +33,9 @@ const state = {
   pickups: [],
   rewardQueue: [],
   activeReward: null,
+  gearPopupCount: 0,
+  gearPopupWindows: { early: 0, mid: 0, late: 0 },
+  gearNotice: null,
   loot: [],
   build: [],
   formedTags: [],
@@ -205,6 +208,9 @@ function resetRun() {
   state.pickups = [];
   state.rewardQueue = [];
   state.activeReward = null;
+  state.gearPopupCount = 0;
+  state.gearPopupWindows = { early: 0, mid: 0, late: 0 };
+  state.gearNotice = null;
   state.playerFlash = 0;
   state.mouseMove = { active: false, x: canvas.width / 2, y: canvas.height / 2 };
   state.loot = [];
@@ -726,19 +732,33 @@ function createEquipmentDrop(enemy) {
 }
 
 function receiveEquipment(equipment) {
-  if (!state.gearBank.some(item => item.uid === equipment.uid)) state.gearBank.unshift(equipment);
   const current = state.equippedGear[equipment.slot];
   if (!current) {
+    if (!state.gearBank.some(item => item.uid === equipment.uid)) state.gearBank.unshift(equipment);
     state.equippedGear[equipment.slot] = equipment;
     recomputeGearStats();
     addLoot(equipment.name, `${equipment.quality}${equipment.slot}自动装备。`, "good");
     recordRunEvent("装备", `获得并装备 ${equipment.name}`);
   } else {
+    const forcePopup = shouldForceGearPopup(equipment, current);
+    const highValue = isHighValueGear(equipment, current);
+    if (!forcePopup && !highValue) {
+      convertLowValueGear(equipment);
+      renderBuildSummary();
+      updateUi();
+      return;
+    }
+    if (!state.gearBank.some(item => item.uid === equipment.uid)) state.gearBank.unshift(equipment);
     state.candidateGear.unshift(equipment);
     state.candidateGear = state.candidateGear.slice(0, 8);
     state.currentCandidateId = equipment.uid;
     addLoot(equipment.name, `${equipment.quality}${equipment.slot}进入候选栏，等待对比。`);
-    enqueueReward({ type: "gear", uid: equipment.uid });
+    if (forcePopup) {
+      markGearPopupUsed();
+      enqueueReward({ type: "gear", uid: equipment.uid });
+    } else {
+      showGearNotice(`发现高价值装备：${equipment.name}，按 E 查看。`);
+    }
     recordRunEvent("装备", `${equipment.name} 进入候选栏`);
   }
   renderEquipment();
@@ -771,6 +791,60 @@ function scoreFit(equipment) {
     if (state.equippedRelics.some(id => getRelic(id)?.tags.includes(tag))) fit += 6;
   });
   return fit;
+}
+
+function getGearPopupWindow() {
+  if (state.time < 120) return { key: "early", cap: 1 };
+  if (state.time < 300) return { key: "mid", cap: 2 };
+  return { key: "late", cap: 2 };
+}
+
+function isRareGear(equipment) {
+  return scoreFit(equipment) >= 50;
+}
+
+function isGearBuildFit(equipment) {
+  const mainTag = getMainBuildTag();
+  return equipment.tags.some(tag => (
+    state.selectedClass.tags.includes(tag)
+    || tag === mainTag
+    || state.equippedRelics.some(id => getRelic(id)?.tags.includes(tag))
+  ));
+}
+
+function isHighValueGear(equipment, current) {
+  const scoreDelta = scoreFit(equipment) - (current ? scoreFit(current) : 0);
+  return scoreDelta >= 15 || (isRareGear(equipment) && isGearBuildFit(equipment));
+}
+
+function shouldForceGearPopup(equipment, current) {
+  if (state.gearPopupCount >= 5) return false;
+  const window = getGearPopupWindow();
+  if ((state.gearPopupWindows[window.key] || 0) < window.cap) return true;
+  return isHighValueGear(equipment, current);
+}
+
+function markGearPopupUsed() {
+  const window = getGearPopupWindow();
+  state.gearPopupCount += 1;
+  state.gearPopupWindows[window.key] = (state.gearPopupWindows[window.key] || 0) + 1;
+}
+
+function showGearNotice(text) {
+  state.gearNotice = text;
+  renderGearNotice();
+}
+
+function clearGearNotice() {
+  state.gearNotice = null;
+  renderGearNotice();
+}
+
+function convertLowValueGear(equipment) {
+  const value = Math.max(2, Math.floor(scoreFit(equipment) / 18));
+  state.jade += value;
+  addLoot(equipment.name, `低价值候选已转化为 ${value} 灵石。`, "good");
+  addFloatText(state.player.x, state.player.y - 36, `+${value} 灵石`, "#d8b45a");
 }
 
 function getGearRecommendation(candidate, current) {
@@ -1564,9 +1638,16 @@ function renderCandidateGear() {
     const card = document.createElement("button");
     card.className = "loot-card";
     card.innerHTML = `<strong>${item.name}</strong><span>${item.quality}${item.slot} · ${getGearRecommendation(item, current)} · 评分 ${scoreFit(item)}</span>`;
-    card.addEventListener("click", () => showGearModal(item.uid));
+    card.addEventListener("click", () => openCandidateGear(item.uid));
     container.appendChild(card);
   });
+}
+
+function renderGearNotice() {
+  const notice = document.getElementById("gearNotice");
+  if (!notice) return;
+  notice.textContent = state.gearNotice || "";
+  notice.classList.toggle("hidden", !state.gearNotice);
 }
 
 function gearCardHtml(title, item) {
@@ -1593,6 +1674,23 @@ function showGearModal(uid) {
     ${gearCardHtml("候选", candidate)}
   `;
   document.getElementById("gearModal").classList.remove("hidden");
+}
+
+function openCandidateGear(uid) {
+  if (state.activeReward) return;
+  const candidate = state.candidateGear.find(item => item.uid === uid);
+  if (!candidate) return;
+  state.activeReward = { type: "gear", uid, manual: true };
+  if (state.running) state.paused = true;
+  clearGearNotice();
+  showGearModal(uid);
+  updateUi();
+}
+
+function openBestCandidateGear() {
+  if (state.activeReward || !state.candidateGear.length) return;
+  const best = [...state.candidateGear].sort((a, b) => scoreFit(b) - scoreFit(a))[0];
+  if (best) openCandidateGear(best.uid);
 }
 
 function hideGearModal() {
@@ -1863,6 +1961,7 @@ function updateUi() {
   renderPrepSummary();
   renderEquipment();
   renderCandidateGear();
+  renderGearNotice();
   renderGearManagement();
   renderRelicManagement();
   renderClassProgress();
@@ -1910,6 +2009,10 @@ document.addEventListener("keydown", event => {
   if (event.code === "Space") {
     if (event.preventDefault) event.preventDefault();
     if (state.running && !state.paused && state.equippedRelics.includes("bell")) triggerActiveRelic("bell");
+  }
+  if (event.code === "KeyE") {
+    if (event.preventDefault) event.preventDefault();
+    openBestCandidateGear();
   }
 });
 document.addEventListener("keyup", event => keys.delete(event.code));

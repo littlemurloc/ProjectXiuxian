@@ -45,6 +45,7 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
   "gameCanvas",
   "upgradeChoices",
   "lootList",
+  "gearNotice",
   "shopList",
   "metricsList"
 ].forEach(id => {
@@ -97,7 +98,7 @@ data.RELICS.forEach(relic => {
   assert(!relic.tags.every(tag => relicClassTags.has(tag)), `Relic must not bind to a single class: ${relic.name}`);
 });
 
-["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "KeyW", "ArrowUp"].forEach(text => {
+["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "rewardQueue", "gearPopupCount", "shouldForceGearPopup", "openBestCandidateGear", "KeyE", "KeyW", "ArrowUp"].forEach(text => {
   assert(js.includes(text), `Missing combat implementation marker: ${text}`);
 });
 
@@ -165,6 +166,7 @@ const elementIds = [
   "modeList",
   "upgradeChoices",
   "lootList",
+  "gearNotice",
   "shopList",
   "metricsList",
   "buildSummary",
