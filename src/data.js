@@ -37,6 +37,35 @@ window.GAME_DATA = {
     { id: "fan3", name: "凡境3", power: 260, enemyHp: 1.38, enemyDamage: 1.25, reward: 1.2 }
   ],
 
+  TRIAL_MODES: [
+    {
+      id: "standard",
+      name: "8分钟正式",
+      duration: 480,
+      schedule: [
+        { time: 135, kind: "warning", text: "冲阵精英即将出现" },
+        { time: 150, kind: "spawn", enemy: "charger_elite", text: "冲阵精英出现" },
+        { time: 255, kind: "warning", text: "石心妖将即将现身" },
+        { time: 270, kind: "spawn", enemy: "stone_boss", text: "小Boss 石心妖将出现" },
+        { time: 405, kind: "warning", text: "劫雷妖君即将降临" },
+        { time: 420, kind: "spawn", enemy: "storm_boss", text: "终局Boss 劫雷妖君出现" }
+      ]
+    },
+    {
+      id: "quick",
+      name: "4分钟快测",
+      duration: 240,
+      schedule: [
+        { time: 68, kind: "warning", text: "冲阵精英即将出现" },
+        { time: 75, kind: "spawn", enemy: "charger_elite", text: "冲阵精英出现" },
+        { time: 128, kind: "warning", text: "石心妖将即将现身" },
+        { time: 135, kind: "spawn", enemy: "stone_boss", text: "小Boss 石心妖将出现" },
+        { time: 203, kind: "warning", text: "劫雷妖君即将降临" },
+        { time: 210, kind: "spawn", enemy: "storm_boss", text: "终局Boss 劫雷妖君出现" }
+      ]
+    }
+  ],
+
   RELICS: [
     { id: "qf_box", name: "青锋匣", type: "攻击法宝", trigger: "auto", cooldown: 6, tags: ["穿透", "暴击"] },
     { id: "thunder_pearl", name: "引雷珠", type: "攻击法宝", trigger: "auto", cooldown: 7, tags: ["雷击", "清怪"] },
@@ -76,29 +105,29 @@ window.GAME_DATA = {
   EQUIPMENT_SLOTS: ["武器", "护符", "戒指", "法袍", "灵靴", "玉佩"],
 
   EQUIPMENT: [
-    { id: "qf_sword", name: "青锋剑", slot: "武器", quality: "精良", tags: ["剑修", "穿透"], score: 42 },
-    { id: "thunder_staff", name: "引雷杖", slot: "武器", quality: "精良", tags: ["雷修", "雷击"], score: 42 },
-    { id: "spirit_charm", name: "聚灵符", slot: "护符", quality: "普通", tags: ["经验", "灵宝"], score: 28 },
-    { id: "ice_charm", name: "玄冰符", slot: "护符", quality: "精良", tags: ["控制", "雷击"], score: 38 },
-    { id: "blood_ring", name: "血玉戒", slot: "戒指", quality: "精良", tags: ["吸血", "生存"], score: 40 },
-    { id: "sword_ring", name: "剑心戒", slot: "戒指", quality: "稀有", tags: ["剑修", "暴击"], score: 56 },
-    { id: "blood_robe", name: "血影法袍", slot: "法袍", quality: "精良", tags: ["吸血", "生存"], score: 41 },
-    { id: "storm_robe", name: "雷纹法袍", slot: "法袍", quality: "精良", tags: ["雷修", "灵宝"], score: 43 },
-    { id: "cloud_boots", name: "踏云靴", slot: "灵靴", quality: "普通", tags: ["机动", "通用"], score: 30 },
-    { id: "treasure_boots", name: "探宝靴", slot: "灵靴", quality: "精良", tags: ["掉落", "机动"], score: 39 },
-    { id: "relic_jade", name: "灵宝玉", slot: "玉佩", quality: "稀有", tags: ["灵宝", "爆发"], score: 55 },
-    { id: "thunder_jade", name: "雷魄玉", slot: "玉佩", quality: "稀有", tags: ["雷修", "Boss"], score: 54 }
+    { id: "qf_sword", name: "青锋剑", slot: "武器", quality: "精良", main: "攻击 +12%", sub: ["飞剑穿透 +1"], special: "适合剑修穿透", tags: ["剑修", "穿透"], score: 42, stats: { attackPct: 0.12, pierce: 1 } },
+    { id: "thunder_staff", name: "引雷杖", slot: "武器", quality: "精良", main: "攻击 +10%", sub: ["雷击跳跃 +1"], special: "适合雷修连锁", tags: ["雷修", "雷击"], score: 42, stats: { attackPct: 0.1, chainJumps: 1 } },
+    { id: "spirit_charm", name: "聚灵符", slot: "护符", quality: "普通", main: "经验 +10%", sub: ["法宝充能 +5%"], special: "稳健成长", tags: ["经验", "灵宝"], score: 28, stats: { xpGain: 0.1, relicHaste: 0.05 } },
+    { id: "ice_charm", name: "玄冰符", slot: "护符", quality: "精良", main: "受伤 -6%", sub: ["雷击减速"], special: "适合控场雷击", tags: ["控制", "雷击"], score: 38, stats: { damageTaken: -0.06, slowOnHit: 0.15 } },
+    { id: "blood_ring", name: "血玉戒", slot: "戒指", quality: "精良", main: "吸血 +3%", sub: ["生命 +12"], special: "适合吸血生存", tags: ["吸血", "生存"], score: 40, stats: { leech: 0.03, maxHp: 12 } },
+    { id: "sword_ring", name: "剑心戒", slot: "戒指", quality: "稀有", main: "暴击 +8%", sub: ["暴击伤害 +25%"], special: "暴击剑影核心", tags: ["剑修", "暴击"], score: 56, stats: { critRate: 0.08, critDamage: 0.25 } },
+    { id: "blood_robe", name: "血影法袍", slot: "法袍", quality: "精良", main: "生命 +24", sub: ["低血增伤"], special: "残血反打", tags: ["吸血", "生存"], score: 41, stats: { maxHp: 24, lowHpDamage: 0.18 } },
+    { id: "storm_robe", name: "雷纹法袍", slot: "法袍", quality: "精良", main: "法宝充能 +12%", sub: ["Boss增伤 +8%"], special: "雷修灵宝流", tags: ["雷修", "灵宝"], score: 43, stats: { relicHaste: 0.12, bossDamage: 0.08 } },
+    { id: "cloud_boots", name: "踏云靴", slot: "灵靴", quality: "普通", main: "移速 +10%", sub: ["拾取范围提升"], special: "通用机动", tags: ["机动", "通用"], score: 30, stats: { moveSpeedPct: 0.1, pickup: 0.15 } },
+    { id: "treasure_boots", name: "探宝靴", slot: "灵靴", quality: "精良", main: "掉落 +8%", sub: ["移速 +6%"], special: "刷宝经济", tags: ["掉落", "机动"], score: 39, stats: { dropRate: 0.08, moveSpeedPct: 0.06 } },
+    { id: "relic_jade", name: "灵宝玉", slot: "玉佩", quality: "稀有", main: "法宝充能 +18%", sub: ["法宝伤害提升"], special: "灵宝爆发核心", tags: ["灵宝", "爆发"], score: 55, stats: { relicHaste: 0.18, attackPct: 0.08 } },
+    { id: "thunder_jade", name: "雷魄玉", slot: "玉佩", quality: "稀有", main: "Boss增伤 +18%", sub: ["雷击跳跃 +1"], special: "雷修补Boss", tags: ["雷修", "Boss"], score: 54, stats: { bossDamage: 0.18, chainJumps: 1 } }
   ],
 
   ENEMIES: [
-    { id: "spirit", name: "游魂", role: "normal", hp: 18, damage: 6, speed: 90, xp: 1, color: "#8b5e57" },
-    { id: "runner", name: "疾妖", role: "normal", hp: 14, damage: 5, speed: 165, xp: 1, color: "#c46f55" },
-    { id: "golem", name: "石甲傀", role: "normal", hp: 75, damage: 10, speed: 65, xp: 4, color: "#8b8170" },
-    { id: "crow", name: "咒鸦", role: "normal", hp: 22, damage: 5, speed: 80, xp: 2, color: "#5e6a87" },
-    { id: "bomber", name: "爆灵", role: "normal", hp: 20, damage: 18, speed: 130, xp: 2, color: "#d86854" },
-    { id: "charger_elite", name: "冲阵精英", role: "elite", hp: 450, damage: 14, speed: 120, xp: 20, color: "#d8b45a" },
-    { id: "stone_boss", name: "石心妖将", role: "boss", hp: 1300, damage: 16, speed: 82, xp: 40, color: "#b95d4a" },
-    { id: "storm_boss", name: "劫雷妖君", role: "boss", hp: 2600, damage: 18, speed: 88, xp: 60, color: "#8062d6" }
+    { id: "spirit", name: "游魂", role: "normal", behavior: "swarm", hp: 18, damage: 6, speed: 90, xp: 1, color: "#8b5e57" },
+    { id: "runner", name: "疾妖", role: "normal", behavior: "runner", hp: 14, damage: 5, speed: 165, xp: 1, color: "#c46f55" },
+    { id: "golem", name: "石甲傀", role: "normal", behavior: "tank", hp: 75, damage: 10, speed: 65, xp: 4, color: "#8b8170" },
+    { id: "crow", name: "咒鸦", role: "normal", behavior: "ranged", hp: 22, damage: 5, speed: 80, xp: 2, color: "#5e6a87" },
+    { id: "bomber", name: "爆灵", role: "normal", behavior: "bomber", hp: 20, damage: 18, speed: 130, xp: 2, color: "#d86854" },
+    { id: "charger_elite", name: "冲阵精英", role: "elite", behavior: "charger", hp: 450, damage: 14, speed: 120, xp: 20, color: "#d8b45a" },
+    { id: "stone_boss", name: "石心妖将", role: "boss", behavior: "stone_boss", hp: 1300, damage: 16, speed: 82, xp: 40, color: "#b95d4a" },
+    { id: "storm_boss", name: "劫雷妖君", role: "boss", behavior: "storm_boss", hp: 2600, damage: 18, speed: 88, xp: 60, color: "#8062d6" }
   ],
 
   EVENTS: [

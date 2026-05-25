@@ -16,6 +16,9 @@
         <div class="tabs" role="tablist" aria-label="主导航">
           <button class="tab active" data-panel="play">试炼</button>
           <button class="tab" data-panel="build">构筑</button>
+          <button class="tab" data-panel="gear">装备</button>
+          <button class="tab" data-panel="relics">法宝</button>
+          <button class="tab" data-panel="classes">职业</button>
           <button class="tab" data-panel="shop">商店</button>
           <button class="tab" data-panel="metrics">指标</button>
         </div>
@@ -37,6 +40,10 @@
             <h2>试炼难度</h2>
             <div class="segmented" id="difficultyList"></div>
           </div>
+          <div class="panel compact">
+            <h2>试炼节奏</h2>
+            <div class="segmented" id="modeList"></div>
+          </div>
         </aside>
 
         <section class="stage panel">
@@ -46,6 +53,7 @@
             <div><span>击杀</span><strong id="killsText">0</strong></div>
             <div><span>生命</span><strong id="hpText">100</strong></div>
           </div>
+          <div id="relicStatus" class="relic-status" aria-label="携带法宝状态"></div>
           <canvas id="gameCanvas" width="960" height="540" aria-label="灵宝试炼战斗画面"></canvas>
           <div class="controls">
             <button id="startBtn" class="primary">开始试炼</button>
@@ -60,16 +68,37 @@
             <div id="upgradeChoices" class="choice-list"></div>
             <h2>掉落装备</h2>
             <div id="lootList" class="loot-list"></div>
+            <h2>候选装备</h2>
+            <div id="candidateGearList" class="loot-list"></div>
           </section>
 
           <section id="buildPanel" class="panel page-panel">
             <h2>当前构筑</h2>
             <div id="buildSummary" class="build-list"></div>
+            <h2>已装备</h2>
+            <div id="equipmentGrid" class="equipment-grid"></div>
+          </section>
+
+          <section id="gearPanel" class="panel page-panel">
+            <h2>局外装备</h2>
+            <div id="gearManageList" class="equipment-grid"></div>
+          </section>
+
+          <section id="relicsPanel" class="panel page-panel">
+            <h2>局外法宝</h2>
+            <div id="relicManageList" class="equipment-grid"></div>
+          </section>
+
+          <section id="classesPanel" class="panel page-panel">
+            <h2>职业成长</h2>
+            <div id="classProgressList" class="equipment-grid"></div>
           </section>
 
           <section id="shopPanel" class="panel page-panel">
             <h2>商业化入口</h2>
             <div id="shopList" class="shop-list"></div>
+            <h2>事件日志</h2>
+            <div id="eventLogList" class="loot-list"></div>
           </section>
 
           <section id="metricsPanel" class="panel page-panel">
@@ -79,6 +108,67 @@
         </aside>
       </section>
     </main>
+
+    <div id="upgradeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="upgradeTitle">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="upgradeTitle">境界提升</h2>
+            <p id="upgradeHint">选择一个方向后继续试炼</p>
+          </div>
+          <button id="upgradeRerollBtn">刷新</button>
+        </div>
+        <div id="modalUpgradeChoices" class="upgrade-grid"></div>
+      </div>
+    </div>
+
+    <div id="gearModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="gearTitle">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="gearTitle">装备对比</h2>
+            <p id="gearHint">同部位装备默认不覆盖</p>
+          </div>
+        </div>
+        <div id="gearCompareBody" class="compare-grid"></div>
+        <div class="controls">
+          <button id="equipCandidateBtn" class="primary">替换装备</button>
+          <button id="keepCandidateBtn">留到结算</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="summaryModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="summaryTitle">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="summaryTitle">试炼结算</h2>
+            <p id="summaryHint">本局复盘与下一步建议</p>
+          </div>
+          <button id="closeSummaryBtn">关闭</button>
+        </div>
+        <div id="summaryBody" class="summary-grid"></div>
+        <div class="controls">
+          <button id="summaryAgainBtn" class="primary">再来一局</button>
+          <button id="summaryForgeBtn">强化装备</button>
+          <button id="summaryRerollBtn">洗练词条</button>
+          <button id="summaryRelicBtn">升级法宝</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="commerceModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="commerceTitle">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="commerceTitle">资源不足</h2>
+            <p id="commerceHint">可通过局内掉落免费获得，也可点击礼包入口验证需求</p>
+          </div>
+          <button id="closeCommerceBtn">关闭</button>
+        </div>
+        <div id="commerceBody" class="summary-grid"></div>
+      </div>
+    </div>
 
     <script src="src/data.js"></script>
     <script src="game.js"></script>

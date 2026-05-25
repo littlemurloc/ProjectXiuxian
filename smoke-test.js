@@ -40,6 +40,7 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
 [
   "classList",
   "difficultyList",
+  "modeList",
   "gameCanvas",
   "upgradeChoices",
   "lootList",
@@ -49,11 +50,23 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
   assert(html.includes(`id="${id}"`), `Missing DOM mount: ${id}`);
 });
 
+["relicStatus", "upgradeModal", "modalUpgradeChoices", "upgradeRerollBtn"].forEach(id => {
+  assert(html.includes(`id="${id}"`), `Missing slice 2 DOM mount: ${id}`);
+});
+
+["equipmentGrid", "candidateGearList", "gearModal", "gearCompareBody", "summaryModal", "summaryBody"].forEach(id => {
+  assert(html.includes(`id="${id}"`), `Missing slice 4 DOM mount: ${id}`);
+});
+
+["gearManageList", "relicManageList", "classProgressList", "eventLogList", "commerceModal", "commerceBody"].forEach(id => {
+  assert(html.includes(`id="${id}"`), `Missing slice 5 DOM mount: ${id}`);
+});
+
 ["src/data.js", "game.js"].forEach(text => {
   assert(html.includes(text), `Missing script load: ${text}`);
 });
 
-["GAME_DATA", "CLASSES", "RELICS", "UPGRADES", "EQUIPMENT", "ENEMIES", "EVENTS", "SHOP_ITEMS"].forEach(text => {
+["GAME_DATA", "CLASSES", "RELICS", "UPGRADES", "EQUIPMENT", "ENEMIES", "EVENTS", "SHOP_ITEMS", "TRIAL_MODES"].forEach(text => {
   assert(dataJs.includes(text), `Missing data table: ${text}`);
 });
 
@@ -67,19 +80,23 @@ const dataJson = dataJs
 const data = Function(`"use strict"; return (${dataJson});`)();
 
 assert(data.CLASSES.length >= 2, "Expected at least 2 classes");
+assert(data.TRIAL_MODES.length >= 2, "Expected standard and quick trial modes");
 assert(data.RELICS.length >= 6, "Expected at least 6 relics");
 assert(data.UPGRADES.length >= 24, "Expected at least 24 upgrades");
 assert(data.EQUIPMENT_SLOTS.length >= 6, "Expected at least 6 equipment slots");
 assert(data.EQUIPMENT.length >= 12, "Expected at least 12 equipment samples");
 assert(data.EVENTS.length >= 6, "Expected at least 6 events");
 assert(data.ENEMIES.filter(item => item.role === "normal").length >= 5, "Expected at least 5 normal enemies");
+assert(data.ENEMIES.some(item => item.behavior === "ranged"), "Expected a ranged enemy behavior");
+assert(data.ENEMIES.some(item => item.behavior === "bomber"), "Expected a bomber enemy behavior");
+assert(data.ENEMIES.some(item => item.behavior === "charger"), "Expected an elite charger behavior");
 
 const relicClassTags = new Set(data.CLASSES.map(item => item.name));
 data.RELICS.forEach(relic => {
   assert(!relic.tags.every(tag => relicClassTags.has(tag)), `Relic must not bind to a single class: ${relic.name}`);
 });
 
-["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "KeyW", "ArrowUp"].forEach(text => {
+["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "KeyW", "ArrowUp"].forEach(text => {
   assert(js.includes(text), `Missing combat implementation marker: ${text}`);
 });
 
@@ -142,11 +159,33 @@ const elementIds = [
   "gameCanvas",
   "classList",
   "difficultyList",
+  "modeList",
   "upgradeChoices",
   "lootList",
   "shopList",
   "metricsList",
   "buildSummary",
+  "equipmentGrid",
+  "candidateGearList",
+  "gearManageList",
+  "relicManageList",
+  "classProgressList",
+  "eventLogList",
+  "relicStatus",
+  "upgradeModal",
+  "upgradeHint",
+  "modalUpgradeChoices",
+  "gearModal",
+  "gearHint",
+  "gearCompareBody",
+  "summaryModal",
+  "summaryTitle",
+  "summaryHint",
+  "summaryBody",
+  "commerceModal",
+  "commerceTitle",
+  "commerceHint",
+  "commerceBody",
   "timeText",
   "levelText",
   "killsText",
@@ -157,8 +196,20 @@ const elementIds = [
   "startBtn",
   "endBtn",
   "rerollBtn",
+  "upgradeRerollBtn",
+  "equipCandidateBtn",
+  "keepCandidateBtn",
+  "closeSummaryBtn",
+  "summaryAgainBtn",
+  "summaryForgeBtn",
+  "summaryRerollBtn",
+  "summaryRelicBtn",
+  "closeCommerceBtn",
   "playPanel",
   "buildPanel",
+  "gearPanel",
+  "relicsPanel",
+  "classesPanel",
   "shopPanel",
   "metricsPanel"
 ];
@@ -184,18 +235,27 @@ elements.gameCanvas.getContext = () => ({
 });
 
 const documentListeners = {};
-const tabs = ["play", "build", "shop", "metrics"].map(panel => {
+const tabs = ["play", "build", "gear", "relics", "classes", "shop", "metrics"].map(panel => {
   const tab = createElement("button");
   tab.dataset.panel = panel;
   return tab;
 });
-const panels = ["playPanel", "buildPanel", "shopPanel", "metricsPanel"].map(id => elements[id]);
+const panels = ["playPanel", "buildPanel", "gearPanel", "relicsPanel", "classesPanel", "shopPanel", "metricsPanel"].map(id => elements[id]);
 
 const sandbox = {
   window: {},
   console,
   performance: { now: () => 0 },
   requestAnimationFrame() {},
+  localStorage: {
+    store: {},
+    getItem(key) {
+      return this.store[key] || null;
+    },
+    setItem(key, value) {
+      this.store[key] = String(value);
+    }
+  },
   document: {
     getElementById(id) {
       assert(elements[id], `Runtime requested missing element: ${id}`);
@@ -223,5 +283,10 @@ elements.startBtn.click();
 sandbox.update(1.1);
 assert(elements.timeText.textContent !== "00:00", "Runtime smoke did not advance the run timer");
 assert(Number(elements.hpText.textContent) > 0, "Runtime smoke did not render player HP");
+sandbox.receiveEquipment({ ...data.EQUIPMENT[0], uid: "test-gear-1", source: "smoke" });
+sandbox.receiveEquipment({ ...data.EQUIPMENT[1], uid: "test-gear-2", source: "smoke" });
+assert(elements.equipmentGrid.children.some(child => child.innerHTML.includes("青锋剑")), "Runtime smoke did not render equipped gear");
+sandbox.endRun("manual");
+assert(elements.summaryBody.innerHTML.includes("战斗结果"), "Runtime smoke did not render summary");
 
 console.log("Smoke test passed: data tables, DOM mounts, JS syntax, and runtime boot are valid.");

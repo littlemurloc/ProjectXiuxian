@@ -82,7 +82,8 @@ p {
 
 .tabs,
 .segmented,
-.controls {
+.controls,
+.relic-status {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -123,7 +124,8 @@ p {
 .loot-list,
 .build-list,
 .shop-list,
-.metrics-list {
+.metrics-list,
+.equipment-grid {
   display: grid;
   gap: 9px;
 }
@@ -131,7 +133,8 @@ p {
 .choice-card,
 .loot-card,
 .shop-card,
-.metric-card {
+.metric-card,
+.equipment-card {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #171b1b;
@@ -146,7 +149,8 @@ p {
 .choice-card strong,
 .loot-card strong,
 .shop-card strong,
-.metric-card strong {
+.metric-card strong,
+.equipment-card strong {
   display: block;
   margin-bottom: 4px;
 }
@@ -154,10 +158,41 @@ p {
 .choice-card span,
 .loot-card span,
 .shop-card span,
-.metric-card span {
+.metric-card span,
+.equipment-card span {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.equipment-card.empty {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+.equipment-card .card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.equipment-card .card-actions button {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.compare-grid,
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.summary-grid {
+  grid-template-columns: 1fr;
 }
 
 .stage {
@@ -168,7 +203,7 @@ p {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .hud div,
@@ -187,6 +222,33 @@ p {
 .stat-row span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.relic-status {
+  margin-bottom: 10px;
+}
+
+.relic-card {
+  flex: 1 1 180px;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #151918;
+  padding: 8px 10px;
+}
+
+.relic-card strong,
+.relic-card span {
+  display: block;
+}
+
+.relic-card span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.relic-card.ready {
+  border-color: var(--accent);
 }
 
 canvas {
@@ -208,6 +270,43 @@ canvas {
 
 .page-panel.active {
   display: block;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(7, 9, 9, 0.72);
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-panel {
+  width: min(760px, 100%);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: #171b1b;
+  padding: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+}
+
+.modal-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.upgrade-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
 }
 
 .tag {
@@ -247,6 +346,10 @@ canvas {
 
   .hud {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .upgrade-grid {
+    grid-template-columns: 1fr;
   }
 
   h1 {
