@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>灵宝试炼 - MVP Prototype</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <section class="topbar">
+        <div>
+          <h1>灵宝试炼</h1>
+          <p>国风刷宝BD生存 · 首测MVP原型</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="主导航">
+          <button class="tab active" data-panel="play">试炼</button>
+          <button class="tab" data-panel="build">构筑</button>
+          <button class="tab" data-panel="shop">商店</button>
+          <button class="tab" data-panel="metrics">指标</button>
+        </div>
+      </section>
+
+      <section class="layout">
+        <aside class="sidebar">
+          <div class="panel">
+            <h2>职业</h2>
+            <div id="classList" class="choice-list"></div>
+          </div>
+          <div class="panel compact">
+            <h2>局外养成</h2>
+            <div class="stat-row"><span>灵石</span><strong id="jadeText">0</strong></div>
+            <div class="stat-row"><span>洗练石</span><strong id="rerollText">0</strong></div>
+            <div class="stat-row"><span>星砂</span><strong id="starText">0</strong></div>
+          </div>
+          <div class="panel compact">
+            <h2>试炼难度</h2>
+            <div class="segmented" id="difficultyList"></div>
+          </div>
+        </aside>
+
+        <section class="stage panel">
+          <div class="hud">
+            <div><span>时间</span><strong id="timeText">00:00</strong></div>
+            <div><span>等级</span><strong id="levelText">1</strong></div>
+            <div><span>击杀</span><strong id="killsText">0</strong></div>
+            <div><span>生命</span><strong id="hpText">100</strong></div>
+          </div>
+          <canvas id="gameCanvas" width="960" height="540" aria-label="灵宝试炼战斗画面"></canvas>
+          <div class="controls">
+            <button id="startBtn" class="primary">开始试炼</button>
+            <button id="endBtn">结算本局</button>
+            <button id="rerollBtn">洗练词条</button>
+          </div>
+        </section>
+
+        <aside class="rightbar">
+          <section id="playPanel" class="panel page-panel active">
+            <h2>本局选择</h2>
+            <div id="upgradeChoices" class="choice-list"></div>
+            <h2>掉落装备</h2>
+            <div id="lootList" class="loot-list"></div>
+          </section>
+
+          <section id="buildPanel" class="panel page-panel">
+            <h2>当前构筑</h2>
+            <div id="buildSummary" class="build-list"></div>
+          </section>
+
+          <section id="shopPanel" class="panel page-panel">
+            <h2>商业化入口</h2>
+            <div id="shopList" class="shop-list"></div>
+          </section>
+
+          <section id="metricsPanel" class="panel page-panel">
+            <h2>MVP验证指标</h2>
+            <div id="metricsList" class="metrics-list"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+
+    <script src="src/data.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>

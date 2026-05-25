@@ -1,0 +1,10 @@
+{
+  "name": "lingbao-trial-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "《灵宝试炼》国风刷宝BD生存MVP原型",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node smoke-test.js"
+  }
+}
