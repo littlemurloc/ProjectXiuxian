@@ -5,6 +5,7 @@ const DATA = window.GAME_DATA;
 const keys = new Set();
 
 const state = {
+  screen: "prep",
   selectedClass: DATA.CLASSES[0],
   difficulty: DATA.TRIAL_TIERS[0],
   trialMode: DATA.TRIAL_MODES[0],
@@ -18,6 +19,8 @@ const state = {
   rerollStone: 8,
   starSand: 0,
   player: { x: 480, y: 270, radius: 16 },
+  mouseMove: { active: false, x: 480, y: 270 },
+  playerFlash: 0,
   hp: 100,
   maxHp: 100,
   shield: 0,
@@ -26,6 +29,10 @@ const state = {
   hazards: [],
   projectiles: [],
   effects: [],
+  floatTexts: [],
+  pickups: [],
+  rewardQueue: [],
+  activeReward: null,
   loot: [],
   build: [],
   formedTags: [],
@@ -75,9 +82,14 @@ function createStats() {
     relicHaste: 0,
     bellBonus: 0,
     shadow: 0,
+    returnBlade: 0,
+    fieldDamage: 0,
     judgement: 0,
     slowOnHit: 0,
-    critRefund: 0
+    thunderBurst: 0,
+    critCleave: 0,
+    critRefund: 0,
+    overhealShield: 0
   };
 }
 
@@ -99,9 +111,14 @@ function emptyStats() {
     relicHaste: 0,
     bellBonus: 0,
     shadow: 0,
+    returnBlade: 0,
+    fieldDamage: 0,
     judgement: 0,
     slowOnHit: 0,
+    thunderBurst: 0,
+    critCleave: 0,
     critRefund: 0,
+    overhealShield: 0,
     maxHp: 0,
     lowHpDamage: 0
   };
@@ -170,6 +187,7 @@ function getClassDamage(target) {
 function resetRun() {
   state.running = true;
   state.paused = false;
+  setScreen("battle");
   state.time = 0;
   state.level = 1;
   state.xp = 0;
@@ -183,6 +201,12 @@ function resetRun() {
   state.hazards = [];
   state.projectiles = [];
   state.effects = [];
+  state.floatTexts = [];
+  state.pickups = [];
+  state.rewardQueue = [];
+  state.activeReward = null;
+  state.playerFlash = 0;
+  state.mouseMove = { active: false, x: canvas.width / 2, y: canvas.height / 2 };
   state.loot = [];
   state.build = [];
   state.formedTags = [];
@@ -222,6 +246,8 @@ function endRun(reason = "manual") {
   if (!state.running && state.kills === 0) return;
   state.running = false;
   state.paused = false;
+  state.rewardQueue = [];
+  state.activeReward = null;
   hideUpgradeModal();
   hideGearModal();
   const reward = Math.floor((state.kills * 2 + state.level * 20) * state.difficulty.reward);
@@ -323,13 +349,58 @@ function clearUpgradeChoices() {
   hideUpgradeModal();
 }
 
-function offerUpgrades(options = {}) {
-  state.pendingUpgrades = pickUpgrades();
-  renderUpgradeChoices();
-  if (options.pause) {
-    state.paused = true;
-    showUpgradeModal();
+function enqueueReward(reward) {
+  state.rewardQueue.push(reward);
+  processRewardQueue();
+}
+
+function processRewardQueue() {
+  if (!state.running || state.activeReward) return;
+  const reward = state.rewardQueue.shift();
+  if (!reward) {
+    state.paused = false;
+    updateUi();
+    return;
   }
+  state.activeReward = reward;
+  state.paused = true;
+  if (reward.type === "upgrade") {
+    state.pendingUpgrades = reward.upgrades;
+    renderUpgradeChoices();
+    showUpgradeModal();
+    updateUi();
+    return;
+  }
+  if (reward.type === "gear") {
+    state.currentCandidateId = null;
+    showGearModal(reward.uid);
+    if (!state.currentCandidateId) {
+      state.activeReward = null;
+      processRewardQueue();
+      return;
+    }
+    updateUi();
+  }
+}
+
+function completeReward(type) {
+  if (state.activeReward?.type === type) {
+    state.activeReward = null;
+    processRewardQueue();
+  } else if (!state.activeReward && state.rewardQueue.length === 0) {
+    state.paused = false;
+    updateUi();
+  }
+}
+
+function offerUpgrades(options = {}) {
+  const upgrades = pickUpgrades();
+  if (options.pause) {
+    enqueueReward({ type: "upgrade", upgrades });
+    return;
+  }
+  state.pendingUpgrades = upgrades;
+  renderUpgradeChoices();
 }
 
 function renderUpgradeChoices() {
@@ -382,10 +453,10 @@ function applyUpgrade(upgrade) {
       addLoot("流派成型", `${tag}流已成型，后续选择将更偏向该方向。`, "good");
     }
   });
-  state.paused = false;
   clearUpgradeChoices();
   renderBuildSummary();
   updateUi();
+  completeReward("upgrade");
 }
 
 function rerollChoices() {
@@ -398,7 +469,8 @@ function rerollChoices() {
     return;
   }
   state.rerollStone -= 1;
-  offerUpgrades({ pause: true });
+  state.pendingUpgrades = pickUpgrades();
+  renderUpgradeChoices();
   addLoot("刷新选择", "本局升级选项已刷新。");
   updateUi();
 }
@@ -462,6 +534,32 @@ function addHazard(hazard) {
   });
 }
 
+function addSlashEffect(x, y, angle, color = "#fff0a6", label = "") {
+  addEffect({
+    kind: "slash",
+    x,
+    y,
+    angle,
+    r: 38,
+    life: 0.26,
+    color,
+    label
+  });
+}
+
+function addRelicPulse(id, x = state.player.x, y = state.player.y) {
+  const visuals = {
+    qf_box: { color: "#9fd7ff", r: 132, label: "剑匣" },
+    thunder_pearl: { color: "#60b6ff", r: 150, label: "引雷" },
+    gourd: { color: "#7fc96d", r: 118, label: "回春" },
+    ice_mirror: { color: "#8fd8ff", r: 220, label: "玄冰" },
+    bell: { color: "#d8b45a", r: 190, label: "聚妖" },
+    fire_pearl: { color: "#d86854", r: 124, label: "炼火" }
+  };
+  const visual = visuals[id] || { color: "#f3efe1", r: 120, label: "法宝" };
+  addEffect({ kind: "relic", x, y, r: visual.r, life: 0.58, color: visual.color, label: visual.label });
+}
+
 function fireAtNearest() {
   if (state.selectedClass.id === "thunder") {
     fireThunder();
@@ -497,8 +595,14 @@ function fireSword() {
     color: crit ? "#fff0a6" : state.selectedClass.color,
     pierceLeft: state.stats.pierce,
     hit: new Set(),
-    crit
+    crit,
+    returnBlade: state.stats.returnBlade > 0,
+    returned: false,
+    trailTimer: 0
   });
+  if (crit) {
+    addSlashEffect(target.x, target.y, Math.atan2(dy, dx), "#fff0a6", "暴击剑影");
+  }
 }
 
 function fireThunder() {
@@ -512,7 +616,15 @@ function fireThunder() {
   for (let i = 0; i < jumps && target; i += 1) {
     damageEnemy(target, damage, "thunder");
     target.hitByThunder += 1;
-    if (state.stats.slowOnHit) target.slow = Math.max(target.slow, 1.2);
+    if (state.stats.slowOnHit) {
+      target.slow = Math.max(target.slow, 1.2);
+      addEffect({ kind: "ring", x: target.x, y: target.y, r: target.radius + 10, life: 0.35, color: "#8fd8ff", label: "麻痹" });
+    }
+    if (state.stats.thunderBurst && target.hitByThunder >= 3) {
+      target.hitByThunder = 0;
+      addEffect({ kind: "blast", x: target.x, y: target.y, r: 86, damage: getClassDamage(target) * 0.8, life: 0.28, color: "#b780ff", label: "雷暴" });
+      addFloatText(target.x, target.y - 26, "雷暴", "#d8e8ff");
+    }
     addEffect({ kind: "line", x1: source.x, y1: source.y, x2: target.x, y2: target.y, life: 0.16, color: "#60b6ff" });
     hit.add(target);
     source = target;
@@ -543,6 +655,10 @@ function killEnemy(enemy, source = "attack") {
     if (heal > missing && state.stats.overhealShield) state.shield = Math.min(30, state.shield + heal - missing);
   }
   maybeDrop(enemy, source);
+  spawnPickup(enemy.x, enemy.y, "xp");
+  if (Math.random() < 0.16) spawnPickup(enemy.x + 10, enemy.y - 8, "jade");
+  if (Math.random() < 0.08) spawnPickup(enemy.x - 10, enemy.y + 8, "hp");
+  if (Math.random() < 0.08) spawnPickup(enemy.x + 8, enemy.y + 8, "relic");
   if (enemy.role !== "normal") recordRunEvent("强敌", `击败 ${enemy.name}`);
   state.enemies = state.enemies.filter(item => item !== enemy);
   if (enemy.id === "storm_boss") {
@@ -622,7 +738,7 @@ function receiveEquipment(equipment) {
     state.candidateGear = state.candidateGear.slice(0, 8);
     state.currentCandidateId = equipment.uid;
     addLoot(equipment.name, `${equipment.quality}${equipment.slot}进入候选栏，等待对比。`);
-    showGearModal(equipment.uid);
+    enqueueReward({ type: "gear", uid: equipment.uid });
     recordRunEvent("装备", `${equipment.name} 进入候选栏`);
   }
   renderEquipment();
@@ -682,12 +798,14 @@ function replaceWithCandidate(uid = state.currentCandidateId) {
   renderCandidateGear();
   renderBuildSummary();
   updateUi();
+  completeReward("gear");
 }
 
 function keepCandidate() {
   state.currentCandidateId = null;
   hideGearModal();
   addLoot("装备保留", "候选装备留到结算处理。");
+  completeReward("gear");
 }
 
 function updateMovement(dt) {
@@ -697,6 +815,15 @@ function updateMovement(dt) {
   if (keys.has("KeyD") || keys.has("ArrowRight")) dx += 1;
   if (keys.has("KeyW") || keys.has("ArrowUp")) dy -= 1;
   if (keys.has("KeyS") || keys.has("ArrowDown")) dy += 1;
+  const keyboardActive = dx !== 0 || dy !== 0;
+  if (!keyboardActive && state.mouseMove.active) {
+    dx = state.mouseMove.x - state.player.x;
+    dy = state.mouseMove.y - state.player.y;
+    if (Math.hypot(dx, dy) < 10) {
+      dx = 0;
+      dy = 0;
+    }
+  }
   const len = Math.hypot(dx, dy) || 1;
   const speed = state.selectedClass.moveSpeed * (1 + state.stats.moveSpeedPct);
   state.player.x = Math.max(state.player.radius, Math.min(canvas.width - state.player.radius, state.player.x + (dx / len) * speed * dt));
@@ -794,6 +921,31 @@ function takeDamage(amount) {
   const shieldBlock = Math.min(state.shield, amount);
   state.shield -= shieldBlock;
   state.hp -= amount - shieldBlock;
+  state.playerFlash = 0.18;
+  if (amount > 1) addFloatText(state.player.x, state.player.y - 24, `-${Math.ceil(amount)}`, "#d86854");
+}
+
+function addFloatText(x, y, text, color = "#f3efe1") {
+  state.floatTexts.push({ x, y, text, color, life: 0.9 });
+}
+
+function spawnPickup(x, y, type) {
+  const config = {
+    xp: { label: "灵", color: "#60b6a9", value: 1 },
+    hp: { label: "血", color: "#d86854", value: 1 },
+    relic: { label: "息", color: "#9fd7ff", value: 1 },
+    jade: { label: "石", color: "#d8b45a", value: 1 }
+  }[type];
+  state.pickups.push({
+    x,
+    y,
+    type,
+    label: config.label,
+    color: config.color,
+    value: config.value,
+    radius: 7,
+    magnet: false
+  });
 }
 
 function triggerActiveRelic(id) {
@@ -804,6 +956,7 @@ function triggerActiveRelic(id) {
     return;
   }
   if (id === "bell") {
+    addRelicPulse("bell");
     state.enemies.forEach(enemy => {
       const dx = state.player.x - enemy.x;
       const dy = state.player.y - enemy.y;
@@ -822,6 +975,21 @@ function updateProjectiles(dt) {
     projectile.x += projectile.vx * dt;
     projectile.y += projectile.vy * dt;
     projectile.life -= dt;
+    projectile.trailTimer = (projectile.trailTimer || 0) - dt;
+    if (projectile.kind === "sword" && state.stats.fieldDamage && projectile.trailTimer <= 0) {
+      projectile.trailTimer = 0.11;
+      addEffect({
+        kind: "zone",
+        x: projectile.x,
+        y: projectile.y,
+        r: 26,
+        damage: projectile.damage * 0.12,
+        life: 0.72,
+        tick: 0,
+        color: "rgba(216,180,90,0.78)",
+        label: "剑痕"
+      });
+    }
     state.enemies.forEach(enemy => {
       if (projectile.dead || projectile.hit.has(enemy)) return;
       if (distance(projectile, enemy) > enemy.radius + projectile.radius) return;
@@ -829,13 +997,39 @@ function updateProjectiles(dt) {
       projectile.hit.add(enemy);
       projectile.pierceLeft -= 1;
       if (projectile.crit && state.stats.shadow) {
-        addEffect({ kind: "line", x1: projectile.x, y1: projectile.y, x2: enemy.x, y2: enemy.y, life: 0.18, color: "#fff0a6" });
+        const angle = Math.atan2(enemy.y - projectile.y, enemy.x - projectile.x);
+        addSlashEffect(enemy.x, enemy.y, angle, "#fff0a6", "追影");
         const extra = nearestEnemy(enemy, new Set([enemy]));
-        if (extra) damageEnemy(extra, projectile.damage * 0.45, "shadow");
+        if (extra) {
+          addEffect({ kind: "line", x1: enemy.x, y1: enemy.y, x2: extra.x, y2: extra.y, life: 0.2, color: "#fff0a6" });
+          damageEnemy(extra, projectile.damage * 0.45, "shadow");
+        }
+      }
+      if (projectile.crit && state.stats.critCleave) {
+        addSlashEffect(enemy.x, enemy.y, Math.atan2(projectile.vy, projectile.vx), "#f3efe1", "连斩");
+        state.enemies.forEach(target => {
+          if (target !== enemy && distance(target, enemy) < 76) damageEnemy(target, projectile.damage * 0.32, "cleave");
+        });
       }
       if (projectile.pierceLeft < 0) projectile.dead = true;
     });
-    if (projectile.life <= 0) projectile.dead = true;
+    if (projectile.life <= 0) {
+      if (projectile.returnBlade && !projectile.returned) {
+        const dx = state.player.x - projectile.x;
+        const dy = state.player.y - projectile.y;
+        const len = Math.hypot(dx, dy) || 1;
+        projectile.vx = (dx / len) * 680;
+        projectile.vy = (dy / len) * 680;
+        projectile.life = 0.46;
+        projectile.returned = true;
+        projectile.pierceLeft = Math.max(projectile.pierceLeft, 1);
+        projectile.hit = new Set();
+        projectile.color = "#f3efe1";
+        addSlashEffect(projectile.x, projectile.y, Math.atan2(projectile.vy, projectile.vx), "#f3efe1", "回锋");
+      } else {
+        projectile.dead = true;
+      }
+    }
   });
   state.projectiles = state.projectiles.filter(projectile => !projectile.dead);
 }
@@ -880,6 +1074,46 @@ function updateHazards(dt) {
   state.hazards = state.hazards.filter(hazard => hazard.life > 0);
 }
 
+function updatePickups(dt) {
+  state.pickups.forEach(item => {
+    const dist = distance(item, state.player);
+    if (dist < 120) item.magnet = true;
+    if (item.magnet) {
+      const dx = state.player.x - item.x;
+      const dy = state.player.y - item.y;
+      const len = Math.hypot(dx, dy) || 1;
+      item.x += (dx / len) * 420 * dt;
+      item.y += (dy / len) * 420 * dt;
+    }
+    if (dist < state.player.radius + item.radius) {
+      if (item.type === "hp") {
+        state.hp = Math.min(state.maxHp, state.hp + 8);
+        addFloatText(state.player.x, state.player.y - 30, "+血", "#7fc96d");
+      }
+      if (item.type === "jade") {
+        state.jade += 1;
+        addFloatText(state.player.x, state.player.y - 30, "+灵石", "#d8b45a");
+      }
+      if (item.type === "relic") {
+        Object.keys(state.relicTimers).forEach(id => {
+          state.relicTimers[id] = Math.max(0, state.relicTimers[id] - 1.2);
+        });
+        addFloatText(state.player.x, state.player.y - 30, "+灵息", "#9fd7ff");
+      }
+      item.dead = true;
+    }
+  });
+  state.pickups = state.pickups.filter(item => !item.dead);
+}
+
+function updateFloatTexts(dt) {
+  state.floatTexts.forEach(item => {
+    item.y -= 28 * dt;
+    item.life -= dt;
+  });
+  state.floatTexts = state.floatTexts.filter(item => item.life > 0);
+}
+
 function updateSchedule() {
   state.trialMode.schedule.forEach(item => {
     const key = `${item.kind}:${item.time}:${item.enemy || item.text}`;
@@ -904,6 +1138,7 @@ function updateRelics(dt) {
     if (state.hp / state.maxHp < 0.4 && state.gourdTimer <= 0) {
       state.hp = Math.min(state.maxHp, state.hp + state.maxHp * 0.25);
       state.gourdTimer = getRelic("gourd").cooldown;
+      addRelicPulse("gourd");
       addEffect({ kind: "circle", x: state.player.x, y: state.player.y, r: 110, life: 0.45, color: "#7fc96d" });
       addLoot("回春葫芦", "低血触发回复。", "good");
     }
@@ -915,6 +1150,7 @@ function updateRelics(dt) {
     if (state.relicTimers[id] > 0) return;
     state.relicTimers[id] = relic.cooldown;
     if (id === "qf_box") {
+      addRelicPulse("qf_box");
       for (let i = -1; i <= 1; i += 1) {
         const angle = Math.atan2((nearestEnemy()?.y || state.player.y) - state.player.y, (nearestEnemy()?.x || state.player.x + 1) - state.player.x) + i * 0.18;
         state.projectiles.push({
@@ -934,10 +1170,12 @@ function updateRelics(dt) {
       addLoot("青锋匣", "法宝飞剑自动出鞘。");
     }
     if (id === "thunder_pearl") {
+      addRelicPulse("thunder_pearl");
       fireThunder();
       addLoot("引雷珠", "法宝雷击补充清怪。");
     }
     if (id === "ice_mirror") {
+      addRelicPulse("ice_mirror");
       state.enemies.forEach(enemy => {
         if (distance(enemy, state.player) < 220) enemy.slow = Math.max(enemy.slow, 2.5);
       });
@@ -947,6 +1185,7 @@ function updateRelics(dt) {
     if (id === "fire_pearl") {
       const target = [...state.enemies].sort((a, b) => b.hp - a.hp)[0];
       if (target) {
+        addRelicPulse("fire_pearl", target.x, target.y);
         addEffect({ kind: "blast", x: target.x, y: target.y, r: 96, damage: getClassDamage(target) * 1.8, life: 0.22, color: "#d86854" });
         addLoot("炼火珠", "高血量目标附近发生爆燃。");
       }
@@ -994,7 +1233,10 @@ function update(dt) {
   updateEnemies(dt);
   updateEnemyProjectiles(dt);
   updateHazards(dt);
+  updatePickups(dt);
   updateProjectiles(dt);
+  updateFloatTexts(dt);
+  state.playerFlash = Math.max(0, state.playerFlash - dt);
   state.effects.forEach(effect => {
     if ((effect.kind === "zone" || effect.kind === "blast") && effect.damage) {
       effect.tick = (effect.tick || 0) - dt;
@@ -1037,15 +1279,31 @@ function draw() {
   state.effects.forEach(effect => {
     ctx.globalAlpha = Math.max(0.1, effect.life * 5);
     ctx.strokeStyle = effect.color;
-    ctx.lineWidth = effect.kind === "line" ? 4 : 2;
+    ctx.fillStyle = effect.color;
+    ctx.lineWidth = effect.kind === "line" ? 4 : effect.kind === "slash" ? 6 : 2;
     ctx.beginPath();
     if (effect.kind === "line") {
       ctx.moveTo(effect.x1, effect.y1);
       ctx.lineTo(effect.x2, effect.y2);
+    } else if (effect.kind === "slash") {
+      ctx.arc(effect.x, effect.y, effect.r, effect.angle - 0.85, effect.angle + 0.85);
+    } else if (effect.kind === "relic") {
+      ctx.arc(effect.x, effect.y, effect.r * (1.15 - effect.life), 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = Math.max(0.08, effect.life * 1.6);
+      ctx.beginPath();
+      ctx.arc(effect.x, effect.y, effect.r * 0.45, 0, Math.PI * 2);
     } else {
       ctx.arc(effect.x, effect.y, effect.r, 0, Math.PI * 2);
     }
     ctx.stroke();
+    if (effect.label) {
+      ctx.globalAlpha = Math.max(0.18, effect.life * 2.2);
+      ctx.fillStyle = effect.color;
+      ctx.font = effect.kind === "relic" ? "16px sans-serif" : "12px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(effect.label, effect.x, effect.y - (effect.r || 24) - 8);
+    }
     ctx.globalAlpha = 1;
   });
 
@@ -1067,16 +1325,42 @@ function draw() {
   });
 
   state.enemies.forEach(enemy => {
+    if (enemy.behavior === "runner") {
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = enemy.color;
+      ctx.beginPath();
+      ctx.arc(enemy.x - (state.player.x - enemy.x) * 0.05, enemy.y - (state.player.y - enemy.y) * 0.05, enemy.radius * 1.35, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     ctx.fillStyle = enemy.color;
     ctx.beginPath();
     ctx.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
     ctx.fill();
+    if (enemy.role !== "normal") {
+      ctx.strokeStyle = enemy.role === "boss" ? "#d86854" : "#d8b45a";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(enemy.x, enemy.y, enemy.radius + 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     if (enemy.role !== "normal") {
       ctx.fillStyle = "rgba(0,0,0,0.45)";
       ctx.fillRect(enemy.x - 28, enemy.y - enemy.radius - 12, 56, 5);
       ctx.fillStyle = "#d8b45a";
       ctx.fillRect(enemy.x - 28, enemy.y - enemy.radius - 12, 56 * Math.max(0, enemy.hp / enemy.maxHp), 5);
     }
+    if (enemy.behavior === "bomber") {
+      ctx.strokeStyle = "#d86854";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(enemy.x, enemy.y, 72, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#f3efe1";
+    ctx.font = enemy.role === "boss" ? "13px sans-serif" : "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(enemy.name, enemy.x, enemy.y - enemy.radius - 16);
   });
 
   state.projectiles.forEach(projectile => {
@@ -1093,12 +1377,41 @@ function draw() {
     ctx.fill();
   });
 
+  state.pickups.forEach(item => {
+    ctx.fillStyle = item.color;
+    ctx.beginPath();
+    if (item.type === "jade") {
+      ctx.rect(item.x - item.radius, item.y - item.radius, item.radius * 2, item.radius * 2);
+    } else {
+      ctx.arc(item.x, item.y, item.radius, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.fillStyle = "#111315";
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(item.label, item.x, item.y + 3);
+  });
+
   ctx.fillStyle = "rgba(216,180,90,0.12)";
   ctx.beginPath();
   ctx.arc(state.player.x, state.player.y, 84, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = state.selectedClass.color;
+  if (state.shield > 0) {
+    ctx.strokeStyle = "#9fd7ff";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(state.player.x, state.player.y, state.player.radius + 8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  if (state.hp / state.maxHp < 0.35) {
+    ctx.strokeStyle = "rgba(216, 104, 84, 0.8)";
+    ctx.lineWidth = 5;
+    ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
+  }
+
+  ctx.fillStyle = state.playerFlash > 0 ? "#f06b5d" : state.selectedClass.color;
   ctx.beginPath();
   ctx.arc(state.player.x, state.player.y, state.player.radius, 0, Math.PI * 2);
   ctx.fill();
@@ -1106,6 +1419,28 @@ function draw() {
   ctx.font = "16px sans-serif";
   ctx.textAlign = "center";
   ctx.fillText(state.selectedClass.name[0], state.player.x, state.player.y + 5);
+
+  if (state.mouseMove.active) {
+    ctx.strokeStyle = "#60b6a9";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(state.player.x, state.player.y);
+    ctx.lineTo(state.mouseMove.x, state.mouseMove.y);
+    ctx.stroke();
+    ctx.fillStyle = "#60b6a9";
+    ctx.beginPath();
+    ctx.arc(state.mouseMove.x, state.mouseMove.y, 6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  state.floatTexts.forEach(item => {
+    ctx.globalAlpha = Math.max(0, item.life);
+    ctx.fillStyle = item.color;
+    ctx.font = "14px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(item.text, item.x, item.y);
+    ctx.globalAlpha = 1;
+  });
 
   if (state.warningTimer > 0) {
     ctx.fillStyle = "rgba(0,0,0,0.58)";
@@ -1141,6 +1476,19 @@ function renderClassList() {
     button.addEventListener("click", () => chooseClass(item.id));
     container.appendChild(button);
   });
+}
+
+function renderPrepSummary() {
+  const container = document.getElementById("prepSummary");
+  if (!container) return;
+  const relics = state.equippedRelics.map(id => getRelic(id)?.name).filter(Boolean).join(" / ");
+  const gearCount = Object.keys(state.equippedGear).length;
+  container.innerHTML = `
+    <div class="equipment-card"><strong>职业</strong><span>${state.selectedClass.name} · ${state.selectedClass.desc}</span></div>
+    <div class="equipment-card"><strong>试炼</strong><span>${state.difficulty.name} · ${state.trialMode.name}</span></div>
+    <div class="equipment-card"><strong>法宝</strong><span>${relics || "未选择"}</span></div>
+    <div class="equipment-card"><strong>装备</strong><span>${gearCount}/6 件已穿戴</span></div>
+  `;
 }
 
 function renderDifficultyList() {
@@ -1512,6 +1860,7 @@ function updateUi() {
   document.getElementById("rerollText").textContent = state.rerollStone;
   document.getElementById("starText").textContent = state.starSand;
   renderRelicStatus();
+  renderPrepSummary();
   renderEquipment();
   renderCandidateGear();
   renderGearManagement();
@@ -1526,11 +1875,33 @@ function setActivePanel(panel) {
   document.getElementById(`${panel}Panel`).classList.add("active");
 }
 
+function setScreen(screen) {
+  state.screen = screen;
+  const layout = document.querySelector(".layout");
+  if (layout) layout.dataset.screen = screen;
+  document.querySelectorAll(".flow-tab").forEach(item => item.classList.toggle("active", item.dataset.screen === screen));
+  if (screen === "battle") setActivePanel("play");
+  if (screen === "growth") setActivePanel("build");
+  if (screen === "shop") setActivePanel("shop");
+  renderPrepSummary();
+}
+
+function canvasPoint(event) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+    y: ((event.clientY - rect.top) / rect.height) * canvas.height
+  };
+}
+
 function bindTabs() {
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       setActivePanel(tab.dataset.panel);
     });
+  });
+  document.querySelectorAll(".flow-tab").forEach(tab => {
+    tab.addEventListener("click", () => setScreen(tab.dataset.screen));
   });
 }
 
@@ -1543,6 +1914,9 @@ document.addEventListener("keydown", event => {
 });
 document.addEventListener("keyup", event => keys.delete(event.code));
 document.getElementById("startBtn").addEventListener("click", resetRun);
+document.getElementById("prepStartBtn").addEventListener("click", resetRun);
+document.getElementById("prepGrowthBtn").addEventListener("click", () => setScreen("growth"));
+document.getElementById("prepShopBtn").addEventListener("click", () => setScreen("shop"));
 document.getElementById("endBtn").addEventListener("click", () => endRun("manual"));
 document.getElementById("rerollBtn").addEventListener("click", rerollChoices);
 document.getElementById("upgradeRerollBtn").addEventListener("click", rerollChoices);
@@ -1552,20 +1926,38 @@ document.getElementById("closeSummaryBtn").addEventListener("click", hideSummary
 document.getElementById("summaryAgainBtn").addEventListener("click", resetRun);
 document.getElementById("summaryForgeBtn").addEventListener("click", () => {
   hideSummaryModal();
+  setScreen("growth");
   setActivePanel("gear");
   logEvent("结算按钮", "强化装备");
 });
 document.getElementById("summaryRerollBtn").addEventListener("click", () => {
   hideSummaryModal();
+  setScreen("growth");
   setActivePanel("gear");
   logEvent("结算按钮", "洗练词条");
 });
 document.getElementById("summaryRelicBtn").addEventListener("click", () => {
   hideSummaryModal();
+  setScreen("growth");
   setActivePanel("relics");
   logEvent("结算按钮", "升级法宝");
 });
 document.getElementById("closeCommerceBtn").addEventListener("click", hideCommerceModal);
+
+canvas.addEventListener("mousedown", event => {
+  if (event.button !== 0) return;
+  const point = canvasPoint(event);
+  state.mouseMove = { active: true, x: point.x, y: point.y };
+});
+canvas.addEventListener("mousemove", event => {
+  if (!state.mouseMove.active) return;
+  const point = canvasPoint(event);
+  state.mouseMove.x = point.x;
+  state.mouseMove.y = point.y;
+});
+document.addEventListener("mouseup", () => {
+  state.mouseMove.active = false;
+});
 
 initMetaProgress();
 loadEventLog();
@@ -1573,10 +1965,12 @@ state.stats = createStats();
 renderClassList();
 renderDifficultyList();
 renderModeList();
+setScreen("prep");
 clearUpgradeChoices();
 renderLoot();
 renderBuildSummary();
 renderRelicStatus();
+renderPrepSummary();
 renderEquipment();
 renderCandidateGear();
 renderGearManagement();

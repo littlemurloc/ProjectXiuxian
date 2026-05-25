@@ -81,6 +81,7 @@ p {
 }
 
 .tabs,
+.flow-tabs,
 .segmented,
 .controls,
 .relic-status {
@@ -89,6 +90,7 @@ p {
   gap: 8px;
 }
 
+.flow-tab.active,
 .tab.active,
 .segmented button.active {
   border-color: var(--accent);
@@ -269,6 +271,36 @@ canvas {
 }
 
 .page-panel.active {
+  display: block;
+}
+
+.layout[data-screen="prep"] .battle-only,
+.layout[data-screen="prep"] .battle-panel,
+.layout[data-screen="prep"] .growth-only,
+.layout[data-screen="prep"] .growth-panel,
+.layout[data-screen="prep"] .shop-panel,
+.layout[data-screen="battle"] .prep-only,
+.layout[data-screen="battle"] .growth-only,
+.layout[data-screen="battle"] .growth-panel,
+.layout[data-screen="battle"] .shop-panel,
+.layout[data-screen="growth"] .prep-only,
+.layout[data-screen="growth"] .battle-only,
+.layout[data-screen="growth"] .battle-panel,
+.layout[data-screen="growth"] .shop-panel,
+.layout[data-screen="shop"] .prep-only,
+.layout[data-screen="shop"] .battle-only,
+.layout[data-screen="shop"] .battle-panel,
+.layout[data-screen="shop"] .growth-only,
+.layout[data-screen="shop"] .growth-panel {
+  display: none;
+}
+
+.layout[data-screen="prep"] .prep-only,
+.layout[data-screen="battle"] .battle-only,
+.layout[data-screen="battle"] .battle-panel.active,
+.layout[data-screen="growth"] .growth-only,
+.layout[data-screen="growth"] .growth-panel.active,
+.layout[data-screen="shop"] .shop-panel.active {
   display: block;
 }
 

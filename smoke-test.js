@@ -38,6 +38,7 @@ const projectConventions = read("PROJECT_CONVENTIONS.md");
 const roleCommunication = read("ROLE_COMMUNICATION.md");
 
 [
+  "prepSummary",
   "classList",
   "difficultyList",
   "modeList",
@@ -96,7 +97,7 @@ data.RELICS.forEach(relic => {
   assert(!relic.tags.every(tag => relicClassTags.has(tag)), `Relic must not bind to a single class: ${relic.name}`);
 });
 
-["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "KeyW", "ArrowUp"].forEach(text => {
+["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "KeyW", "ArrowUp"].forEach(text => {
   assert(js.includes(text), `Missing combat implementation marker: ${text}`);
 });
 
@@ -146,7 +147,8 @@ function createElement(tagName = "div") {
     },
     classList: {
       add() {},
-      remove() {}
+      remove() {},
+      toggle() {}
     },
     click() {
       (listeners.click || []).forEach(handler => handler({}));
@@ -157,6 +159,7 @@ function createElement(tagName = "div") {
 
 const elementIds = [
   "gameCanvas",
+  "prepSummary",
   "classList",
   "difficultyList",
   "modeList",
@@ -194,6 +197,9 @@ const elementIds = [
   "rerollText",
   "starText",
   "startBtn",
+  "prepStartBtn",
+  "prepGrowthBtn",
+  "prepShopBtn",
   "endBtn",
   "rerollBtn",
   "upgradeRerollBtn",
@@ -216,6 +222,7 @@ const elementIds = [
 const elements = Object.fromEntries(elementIds.map(id => [id, createElement()]));
 elements.gameCanvas.width = 960;
 elements.gameCanvas.height = 540;
+elements.gameCanvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 960, height: 540 });
 elements.gameCanvas.getContext = () => ({
   clearRect() {},
   fillRect() {},
@@ -240,7 +247,14 @@ const tabs = ["play", "build", "gear", "relics", "classes", "shop", "metrics"].m
   tab.dataset.panel = panel;
   return tab;
 });
+const flowTabs = ["prep", "battle", "growth", "shop"].map(screen => {
+  const tab = createElement("button");
+  tab.dataset.screen = screen;
+  return tab;
+});
 const panels = ["playPanel", "buildPanel", "gearPanel", "relicsPanel", "classesPanel", "shopPanel", "metricsPanel"].map(id => elements[id]);
+const layout = createElement("section");
+layout.dataset = { screen: "prep" };
 
 const sandbox = {
   window: {},
@@ -264,8 +278,13 @@ const sandbox = {
     createElement,
     querySelectorAll(selector) {
       if (selector === ".tab") return tabs;
+      if (selector === ".flow-tab") return flowTabs;
       if (selector === ".page-panel") return panels;
       return [];
+    },
+    querySelector(selector) {
+      if (selector === ".layout") return layout;
+      return null;
     },
     addEventListener(type, handler) {
       documentListeners[type] = documentListeners[type] || [];

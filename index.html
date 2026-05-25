@@ -13,18 +13,15 @@
           <h1>灵宝试炼</h1>
           <p>国风刷宝BD生存 · 首测MVP原型</p>
         </div>
-        <div class="tabs" role="tablist" aria-label="主导航">
-          <button class="tab active" data-panel="play">试炼</button>
-          <button class="tab" data-panel="build">构筑</button>
-          <button class="tab" data-panel="gear">装备</button>
-          <button class="tab" data-panel="relics">法宝</button>
-          <button class="tab" data-panel="classes">职业</button>
-          <button class="tab" data-panel="shop">商店</button>
-          <button class="tab" data-panel="metrics">指标</button>
+        <div class="flow-tabs" role="tablist" aria-label="流程导航">
+          <button class="flow-tab active" data-screen="prep">试炼准备</button>
+          <button class="flow-tab" data-screen="battle">局内战斗</button>
+          <button class="flow-tab" data-screen="growth">局外养成</button>
+          <button class="flow-tab" data-screen="shop">商店验证</button>
         </div>
       </section>
 
-      <section class="layout">
+      <section class="layout" data-screen="prep">
         <aside class="sidebar">
           <div class="panel">
             <h2>职业</h2>
@@ -46,7 +43,7 @@
           </div>
         </aside>
 
-        <section class="stage panel">
+        <section class="stage panel battle-only">
           <div class="hud">
             <div><span>时间</span><strong id="timeText">00:00</strong></div>
             <div><span>等级</span><strong id="levelText">1</strong></div>
@@ -62,8 +59,24 @@
           </div>
         </section>
 
+        <section class="stage panel prep-only">
+          <h2>试炼准备</h2>
+          <div id="prepSummary" class="summary-grid"></div>
+          <div class="controls">
+            <button id="prepStartBtn" class="primary">开始试炼</button>
+            <button id="prepGrowthBtn">整理养成</button>
+            <button id="prepShopBtn">商店验证</button>
+          </div>
+        </section>
+
         <aside class="rightbar">
-          <section id="playPanel" class="panel page-panel active">
+          <div class="tabs growth-only" role="tablist" aria-label="局外养成导航">
+            <button class="tab active" data-panel="build">构筑</button>
+            <button class="tab" data-panel="gear">装备</button>
+            <button class="tab" data-panel="relics">法宝</button>
+            <button class="tab" data-panel="classes">职业</button>
+          </div>
+          <section id="playPanel" class="panel page-panel battle-panel active">
             <h2>本局选择</h2>
             <div id="upgradeChoices" class="choice-list"></div>
             <h2>掉落装备</h2>
@@ -72,36 +85,36 @@
             <div id="candidateGearList" class="loot-list"></div>
           </section>
 
-          <section id="buildPanel" class="panel page-panel">
+          <section id="buildPanel" class="panel page-panel growth-panel">
             <h2>当前构筑</h2>
             <div id="buildSummary" class="build-list"></div>
             <h2>已装备</h2>
             <div id="equipmentGrid" class="equipment-grid"></div>
           </section>
 
-          <section id="gearPanel" class="panel page-panel">
+          <section id="gearPanel" class="panel page-panel growth-panel">
             <h2>局外装备</h2>
             <div id="gearManageList" class="equipment-grid"></div>
           </section>
 
-          <section id="relicsPanel" class="panel page-panel">
+          <section id="relicsPanel" class="panel page-panel growth-panel">
             <h2>局外法宝</h2>
             <div id="relicManageList" class="equipment-grid"></div>
           </section>
 
-          <section id="classesPanel" class="panel page-panel">
+          <section id="classesPanel" class="panel page-panel growth-panel">
             <h2>职业成长</h2>
             <div id="classProgressList" class="equipment-grid"></div>
           </section>
 
-          <section id="shopPanel" class="panel page-panel">
+          <section id="shopPanel" class="panel page-panel shop-panel">
             <h2>商业化入口</h2>
             <div id="shopList" class="shop-list"></div>
             <h2>事件日志</h2>
             <div id="eventLogList" class="loot-list"></div>
           </section>
 
-          <section id="metricsPanel" class="panel page-panel">
+          <section id="metricsPanel" class="panel page-panel shop-panel">
             <h2>MVP验证指标</h2>
             <div id="metricsList" class="metrics-list"></div>
           </section>
