@@ -148,6 +148,12 @@ p {
   box-shadow: inset 0 0 0 1px rgba(216, 180, 90, 0.25);
 }
 
+.choice-card.locked {
+  border-color: rgba(96, 182, 169, 0.72);
+  background: #14201e;
+  opacity: 0.82;
+}
+
 .choice-card strong,
 .loot-card strong,
 .shop-card strong,
@@ -172,6 +178,68 @@ p {
   color: var(--muted);
 }
 
+.synergy-impact {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(96, 182, 169, 0.42);
+  border-radius: 6px;
+  background: #151918;
+  padding: 10px;
+}
+
+.synergy-impact.warning {
+  border-color: rgba(216, 104, 84, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(216, 104, 84, 0.18);
+}
+
+.synergy-impact strong,
+.synergy-impact em {
+  display: block;
+}
+
+.synergy-impact em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.synergy-impact p {
+  color: #f2b0a4;
+  font-size: 13px;
+}
+
+.synergy-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.3;
+  margin: 0 6px 6px 0;
+  padding: 4px 8px;
+}
+
+.synergy-pill.core,
+.synergy-pill.mutation {
+  border-color: var(--accent);
+  background: rgba(216, 180, 90, 0.13);
+  font-weight: 700;
+}
+
+.synergy-pill.mutation {
+  border-color: #d868ff;
+  background: rgba(216, 104, 255, 0.14);
+}
+
+.synergy-pill.lost.core,
+.synergy-pill.lost.mutation {
+  border-color: var(--danger);
+  background: rgba(216, 104, 84, 0.15);
+}
+
 .equipment-card .card-actions {
   display: flex;
   flex-wrap: wrap;
@@ -193,6 +261,48 @@ p {
   margin-bottom: 14px;
 }
 
+.pact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pact-card {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid rgba(183, 92, 255, 0.48);
+  border-radius: 6px;
+  background: #171719;
+  min-height: 260px;
+  padding: 12px;
+}
+
+.pact-card.tribulation {
+  border-color: rgba(216, 138, 61, 0.62);
+  background: #1a1712;
+}
+
+.pact-card.chest-card {
+  border-color: rgba(96, 182, 169, 0.58);
+  background: #151b19;
+}
+
+.pact-card strong {
+  color: var(--text);
+}
+
+.pact-card span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pact-card .pact-situation {
+  color: #f0cf8f;
+}
+
 .summary-grid {
   grid-template-columns: 1fr;
 }
@@ -203,7 +313,7 @@ p {
 
 .hud {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   margin-bottom: 8px;
 }
@@ -342,6 +452,10 @@ canvas {
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
 }
 
+.modal-panel.pact-panel {
+  width: min(980px, 100%);
+}
+
 .modal-head {
   display: flex;
   align-items: start;
@@ -364,6 +478,13 @@ canvas {
   border-radius: 999px;
   padding: 2px 8px;
   color: var(--accent-2);
+  font-size: 12px;
+}
+
+.synergy-badge {
+  display: block;
+  margin-top: 6px;
+  color: #d8b45a;
   font-size: 12px;
 }
 
@@ -396,6 +517,10 @@ canvas {
   }
 
   .upgrade-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pact-grid {
     grid-template-columns: 1fr;
   }
 

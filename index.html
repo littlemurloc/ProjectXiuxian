@@ -49,6 +49,7 @@
             <div><span>等级</span><strong id="levelText">1</strong></div>
             <div><span>击杀</span><strong id="killsText">0</strong></div>
             <div><span>生命</span><strong id="hpText">100</strong></div>
+            <div class="spirit-hud" title="本局临时资源，可用于刷新升级、锁定升级或开启灵匣。结算后清空。"><span>灵机</span><strong id="spiritText">0</strong></div>
           </div>
           <div id="relicStatus" class="relic-status" aria-label="携带法宝状态"></div>
           <canvas id="gameCanvas" width="960" height="540" aria-label="灵宝试炼战斗画面"></canvas>
@@ -57,6 +58,7 @@
             <button id="startBtn" class="primary">开始试炼</button>
             <button id="endBtn">结算本局</button>
             <button id="rerollBtn">洗练词条</button>
+            <button id="openChestBtn" title="消耗 2 灵机开启，本局最多 1 次。">开启灵匣</button>
           </div>
         </section>
 
@@ -128,10 +130,11 @@
         <div class="modal-head">
           <div>
             <h2 id="upgradeTitle">境界提升</h2>
-            <p id="upgradeHint">选择一个方向后继续试炼</p>
+            <p id="upgradeHint">选择一个方向后继续试炼；可花费 1 灵机锁定一个未选择升级，下次升级必出。</p>
           </div>
           <button id="upgradeRerollBtn">刷新</button>
         </div>
+        <div id="lockedUpgradeHint" class="gear-notice hidden"></div>
         <div id="modalUpgradeChoices" class="upgrade-grid"></div>
       </div>
     </div>
@@ -149,6 +152,33 @@
           <button id="equipCandidateBtn" class="primary">替换装备</button>
           <button id="keepCandidateBtn">留到结算</button>
         </div>
+      </div>
+    </div>
+
+    <div id="pactModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="pactTitle">
+      <div class="modal-panel pact-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="pactTitle">契约显现</h2>
+            <p id="pactHint">选择是否接受本局风险代价</p>
+          </div>
+        </div>
+        <div id="pactChoices" class="pact-grid"></div>
+        <div class="controls">
+          <button id="skipPactBtn">放弃契约</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="chestModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="chestTitle">
+      <div class="modal-panel pact-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="chestTitle">灵匣开启</h2>
+            <p id="chestHint">选择一项强决策奖励后继续试炼</p>
+          </div>
+        </div>
+        <div id="chestChoices" class="pact-grid"></div>
       </div>
     </div>
 

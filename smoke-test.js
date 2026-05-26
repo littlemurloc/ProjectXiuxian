@@ -52,7 +52,7 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
   assert(html.includes(`id="${id}"`), `Missing DOM mount: ${id}`);
 });
 
-["relicStatus", "upgradeModal", "modalUpgradeChoices", "upgradeRerollBtn"].forEach(id => {
+["relicStatus", "upgradeModal", "modalUpgradeChoices", "upgradeRerollBtn", "lockedUpgradeHint", "spiritText", "openChestBtn"].forEach(id => {
   assert(html.includes(`id="${id}"`), `Missing slice 2 DOM mount: ${id}`);
 });
 
@@ -60,7 +60,7 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
   assert(html.includes(`id="${id}"`), `Missing slice 4 DOM mount: ${id}`);
 });
 
-["gearManageList", "relicManageList", "classProgressList", "eventLogList", "commerceModal", "commerceBody"].forEach(id => {
+["gearManageList", "relicManageList", "classProgressList", "eventLogList", "commerceModal", "commerceBody", "pactModal", "pactChoices", "skipPactBtn", "chestModal", "chestChoices"].forEach(id => {
   assert(html.includes(`id="${id}"`), `Missing slice 5 DOM mount: ${id}`);
 });
 
@@ -68,13 +68,15 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
   assert(html.includes(text), `Missing script load: ${text}`);
 });
 
-["GAME_DATA", "CLASSES", "RELICS", "UPGRADES", "EQUIPMENT", "ENEMIES", "EVENTS", "SHOP_ITEMS", "TRIAL_MODES"].forEach(text => {
+["GAME_DATA", "CLASSES", "RELICS", "UPGRADES", "EQUIPMENT", "SYNERGIES", "PACT_OPTIONS", "SPIRIT_CHEST", "ENEMIES", "EVENTS", "SHOP_ITEMS", "TRIAL_MODES"].forEach(text => {
   assert(dataJs.includes(text), `Missing data table: ${text}`);
 });
 
 ["剑修", "雷修", "月卡", "首充礼包", "洗练礼包", "法宝养成包"].forEach(text => {
   assert(dataJs.includes(text), `Missing gameplay or monetization content: ${text}`);
 });
+
+assert(html.includes("可花费 1 灵机锁定一个未选择升级，下次升级必出"), "Missing upgrade lock explanation");
 
 const dataJson = dataJs
   .replace(/^window\.GAME_DATA\s*=\s*/, "")
@@ -98,7 +100,7 @@ data.RELICS.forEach(relic => {
   assert(!relic.tags.every(tag => relicClassTags.has(tag)), `Relic must not bind to a single class: ${relic.name}`);
 });
 
-["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "rewardQueue", "gearPopupCount", "shouldForceGearPopup", "isUpgradeAllowedForClass", "isUpgradeAvailable", "upgradeLevels", "skillNotice", "trackSkillStat", "showSkillNotice", "relicSkillStats", "gearSkillStats", "升级跳过", "openBestCandidateGear", "guaranteedShadowTimer", "relicEmpoweredAttack", "strengthSources", "wideSwordEvery", "thunderStaffArc", "KeyE", "KeyW", "ArrowUp"].forEach(text => {
+["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showPactModal", "acceptPact", "rejectPact", "offerPacts", "openSpiritChest", "showChestModal", "chooseChestReward", "lockUpgrade", "gainSpirit", "spendSpirit", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "rewardQueue", "gearPopupCount", "shouldForceGearPopup", "isUpgradeAllowedForClass", "isUpgradeAvailable", "upgradeLevels", "skillNotice", "trackSkillStat", "showSkillNotice", "relicSkillStats", "gearSkillStats", "activeSynergies", "evaluateSynergies", "getNearSynergies", "getEquipmentSynergyImpact", "gearSynergyImpactHtml", "triggerSynergy", "addSynergyBlast", "PACT_OPTIONS", "SPIRIT_CHEST", "acceptedPacts", "pactStats", "pactRuntime", "spiritStats", "freeUpgradeRerolls", "lockedUpgrade", "已锁定，下次升级出现", "本次不能直接选择", "灵机统计", "灵匣开启", "反噬雷", "契约收益与代价", "bellFirePending", "bloodRelicLeech", "swordRainTimer", "九霄雷狱", "血葫护体", "灵契觉醒", "升级跳过", "openBestCandidateGear", "guaranteedShadowTimer", "relicEmpoweredAttack", "strengthSources", "wideSwordEvery", "thunderStaffArc", "KeyE", "KeyW", "ArrowUp"].forEach(text => {
   assert(js.includes(text), `Missing combat implementation marker: ${text}`);
 });
 
@@ -106,6 +108,21 @@ assert(data.RELICS.every(item => item.skillName), "Every relic should expose a s
 assert(data.EQUIPMENT.filter(item => item.skillName).length >= 6, "Expected at least 6 named equipment skills");
 assert(data.UPGRADES.some(item => item.type === "basic" && item.maxLevel === 3), "Expected stackable basic upgrades");
 assert(data.UPGRADES.some(item => item.type === "advanced" && item.requiresTags), "Expected tag-gated advanced upgrades");
+assert(data.SYNERGIES.filter(item => item.tier === "light").length >= 12, "Expected 12 light synergies");
+assert(data.SYNERGIES.filter(item => item.tier === "core").length >= 6, "Expected 6 core synergies");
+assert(data.SYNERGIES.filter(item => item.tier === "mutation").length >= 3, "Expected 3 mutation synergies");
+data.SYNERGIES.forEach(item => {
+  assert(item.id && item.name && item.tier && Array.isArray(item.conditions) && item.effect && item.track, `Invalid synergy config: ${item.id || item.name}`);
+});
+assert(data.PACT_OPTIONS.filter(item => item.type === "邪契").length >= 6, "Expected 6 dark pact options");
+assert(data.PACT_OPTIONS.filter(item => item.type === "劫契").length >= 3, "Expected 3 tribulation pact options");
+data.PACT_OPTIONS.forEach(item => {
+  assert(item.id && item.type && item.name && item.gain && item.cost && item.fit && item.entrance && item.stats && item.costStats && item.track, `Invalid pact config: ${item.id || item.name}`);
+});
+assert(data.SPIRIT_CHEST.rareUpgrades.length >= 4, "Expected 4 spirit chest rare upgrades");
+assert(data.SPIRIT_CHEST.pacts.length >= 4, "Expected 4 spirit chest pacts");
+assert(data.SPIRIT_CHEST.gear.length >= 4, "Expected 4 spirit chest gear rewards");
+assert(data.SPIRIT_CHEST.relicBoosts.length >= 4, "Expected 4 spirit chest relic boosts");
 
 ["不再沿用塔防", "刷宝BD", "职业能力提升触发途径", "8 分钟固定节奏", "MVP数据目标", "下一版网页原型验收标准", "4 分钟快速测试模式"].forEach(text => {
   assert(design.includes(text), `Missing design note: ${text}`);
@@ -187,10 +204,19 @@ const elementIds = [
   "relicStatus",
   "upgradeModal",
   "upgradeHint",
+  "lockedUpgradeHint",
   "modalUpgradeChoices",
   "gearModal",
   "gearHint",
   "gearCompareBody",
+  "pactModal",
+  "pactTitle",
+  "pactHint",
+  "pactChoices",
+  "chestModal",
+  "chestTitle",
+  "chestHint",
+  "chestChoices",
   "summaryModal",
   "summaryTitle",
   "summaryHint",
@@ -203,6 +229,7 @@ const elementIds = [
   "levelText",
   "killsText",
   "hpText",
+  "spiritText",
   "jadeText",
   "rerollText",
   "starText",
@@ -212,9 +239,11 @@ const elementIds = [
   "prepShopBtn",
   "endBtn",
   "rerollBtn",
+  "openChestBtn",
   "upgradeRerollBtn",
   "equipCandidateBtn",
   "keepCandidateBtn",
+  "skipPactBtn",
   "closeSummaryBtn",
   "summaryAgainBtn",
   "summaryForgeBtn",

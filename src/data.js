@@ -137,6 +137,49 @@ window.GAME_DATA = {
     { id: "thunder_jade", name: "雷魄玉", slot: "玉佩", quality: "稀有", main: "Boss增伤 +18%", sub: ["雷击跳跃 +1"], special: "雷修补Boss", tags: ["雷修", "Boss"], score: 54, stats: { bossDamage: 0.18, chainJumps: 1 } }
   ],
 
+  SYNERGIES: [
+    { id: "qf_bone", name: "青锋入骨", tier: "light", conditions: [{ type: "class", value: "剑修" }, { type: "relic", value: "qf_box" }], effect: "青锋匣飞剑穿透 +1", stats: { pierce: 1 }, track: "触发次数" },
+    { id: "thunder_body", name: "引雷入体", tier: "light", conditions: [{ type: "class", value: "雷修" }, { type: "relic", value: "thunder_pearl" }], effect: "引雷珠弹跳 +1", stats: { chainJumps: 1 }, track: "触发次数" },
+    { id: "ice_thunder", name: "寒雷相引", tier: "light", conditions: [{ type: "relic", value: "ice_mirror" }, { type: "tag", value: "雷击", count: 1 }], effect: "冰域内敌人被雷击时，减速延长", stats: { slowOnHit: 0.12 }, track: "控制次数" },
+    { id: "bell_fire", name: "铃火聚爆", tier: "light", conditions: [{ type: "relic", value: "bell" }, { type: "relic", value: "fire_pearl" }], effect: "炼火珠优先锁定聚妖铃聚怪中心", stats: { bellBonus: 0.08 }, track: "影响敌人数" },
+    { id: "gourd_breath", name: "葫芦养息", tier: "light", conditions: [{ type: "relic", value: "gourd" }, { type: "tag", value: "吸血", count: 1 }], effect: "回春葫芦治疗量 +15%", stats: { leech: 0.02 }, track: "治疗量" },
+    { id: "jade_sword", name: "灵玉启锋", tier: "light", conditions: [{ type: "equipment", value: "relic_jade" }, { type: "class", value: "剑修" }], effect: "法宝触发后的强化飞剑速度提高", stats: { attackSpeedPct: 0.06 }, track: "强化攻击" },
+    { id: "jade_thunder", name: "灵玉引雷", tier: "light", conditions: [{ type: "equipment", value: "relic_jade" }, { type: "class", value: "雷修" }], effect: "法宝触发后的强化雷击弹跳范围提高", stats: { chainJumps: 1 }, track: "强化攻击" },
+    { id: "qf_resonance", name: "青锋同鸣", tier: "light", conditions: [{ type: "equipment", value: "qf_sword" }, { type: "relic", value: "qf_box" }], effect: "青锋匣飞剑也计入青锋剑宽剑气计数", stats: { pierce: 1 }, track: "装备技触发" },
+    { id: "staff_resonance", name: "雷杖共振", tier: "light", conditions: [{ type: "equipment", value: "thunder_staff" }, { type: "relic", value: "thunder_pearl" }], effect: "引雷珠最后一跳也能触发余雷电弧", stats: { thunderStaffArc: 1 }, track: "装备技触发" },
+    { id: "ring_shadow", name: "戒心追影", tier: "light", conditions: [{ type: "equipment", value: "sword_ring" }, { type: "tag", value: "暴击", count: 1 }], effect: "剑心戒内置冷却 -0.2 秒", stats: { critRate: 0.04 }, track: "追加剑影" },
+    { id: "storm_guide", name: "雷纹导引", tier: "light", conditions: [{ type: "equipment", value: "storm_robe" }, { type: "relic", value: "ice_mirror" }], effect: "冰域内敌人更容易被雷击优先锁定", stats: { smartParalyze: 1 }, track: "追击命中" },
+    { id: "spirit_return", name: "聚灵回转", tier: "light", conditions: [{ type: "equipment", value: "spirit_charm" }, { type: "pickup", value: "relic" }], effect: "拾取法宝灵息时，额外刷新少量装备技冷却", stats: { relicHaste: 0.08 }, track: "冷却减少" },
+    { id: "qf_shadow_core", name: "青锋追影", tier: "core", conditions: [{ type: "class", value: "剑修" }, { type: "relic", value: "qf_box" }, { type: "tag", value: "暴击", count: 2 }], effect: "青锋匣飞剑暴击时也能生成小剑影", stats: { shadow: 1, critRate: 0.05 }, track: "剑影次数" },
+    { id: "thunder_domain_core", name: "雷域连锁", tier: "core", conditions: [{ type: "class", value: "雷修" }, { type: "relic", value: "ice_mirror" }, { type: "tag", value: "雷击", count: 2 }], effect: "冰域内雷击额外分裂一条短电弧", stats: { chainJumps: 1, slowOnHit: 0.15 }, track: "电弧次数" },
+    { id: "bell_fire_core", name: "铃火炼妖", tier: "core", conditions: [{ type: "relic", value: "bell" }, { type: "relic", value: "fire_pearl" }, { type: "tag", value: "灵宝", count: 2 }], effect: "聚妖铃结束时，在中心触发一次小爆炎", stats: { bellBonus: 0.12, attackPct: 0.05 }, track: "爆炎次数" },
+    { id: "blood_gourd_core", name: "血葫护体", tier: "core", conditions: [{ type: "relic", value: "gourd" }, { type: "tag", value: "吸血", count: 2 }, { type: "upgrade", value: "hp_base" }], effect: "葫芦治疗溢出转化为护盾", stats: { overhealShield: 1, leech: 0.03 }, track: "护盾量" },
+    { id: "jade_sword_core", name: "灵宝灌剑", tier: "core", conditions: [{ type: "equipment", value: "relic_jade" }, { type: "equipment", value: "qf_sword" }, { type: "tag", value: "剑修", count: 2 }], effect: "法宝触发后的下一次宽剑气额外变宽", stats: { relicJadeEmpower: 1, pierce: 1 }, track: "强化攻击" },
+    { id: "jade_thunder_core", name: "灵宝灌雷", tier: "core", conditions: [{ type: "equipment", value: "relic_jade" }, { type: "equipment", value: "thunder_staff" }, { type: "tag", value: "雷修", count: 2 }], effect: "法宝触发后的下一次余雷电弧额外分裂", stats: { relicJadeEmpower: 1, chainJumps: 1 }, track: "强化攻击" },
+    { id: "sword_rain_mutation", name: "万剑开匣", tier: "mutation", conditions: [{ type: "class", value: "剑修" }, { type: "relic", value: "qf_box" }, { type: "equipment", value: "qf_sword" }, { type: "upgrade", value: "sword_pierce_adv" }], effect: "青锋匣触发后，下一次飞剑攻击变成短暂剑雨", stats: { pierce: 2, attackSpeedPct: 0.12 }, track: "剑雨次数" },
+    { id: "thunder_prison_mutation", name: "九霄雷狱", tier: "mutation", conditions: [{ type: "class", value: "雷修" }, { type: "relic", value: "thunder_pearl" }, { type: "equipment", value: "storm_robe" }, { type: "upgrade", value: "thunder_chain_adv" }], effect: "雷爆后留下短暂雷痕区域，持续麻痹敌人", stats: { thunderBurst: 1, slowOnHit: 0.25 }, track: "雷狱次数" },
+    { id: "blood_relic_mutation", name: "血炼宝身", tier: "mutation", conditions: [{ type: "relic", value: "gourd" }, { type: "upgrade", value: "overflow_shield" }, { type: "equipment", value: "relic_jade" }, { type: "tag", value: "吸血", count: 3 }], effect: "护盾存在时，法宝触发会强化下一次职业攻击并附带吸血", stats: { relicJadeEmpower: 1, leech: 0.05 }, track: "强化吸血" }
+  ],
+
+  PACT_OPTIONS: [
+    { id: "severed_meridian_sword", type: "邪契", name: "断脉剑诀", gain: "飞剑与剑影伤害提高。", cost: "最大生命降低。", fit: "适合剑修暴击/穿透局，血量压力较低时更稳。", entrance: "风险事件/小Boss后", stats: { swordDamagePct: 0.28, shadowDamagePct: 0.25, maxHp: -18 }, costStats: { maxHp: -18 }, track: "飞剑收益" },
+    { id: "soul_burn_relic", type: "邪契", name: "燃魂炼宝", gain: "法宝冷却明显降低。", cost: "每次法宝触发消耗当前生命。", fit: "适合法宝成型、有回春或吸血支撑的局。", entrance: "风险事件/小Boss后", stats: { relicHaste: 0.32, relicHpCost: 0.05 }, costStats: { relicHpCost: 0.05 }, track: "消耗生命" },
+    { id: "last_stand_seal", type: "邪契", name: "破釜灵印", gain: "低血时全伤害提高。", cost: "生命无法自然恢复到 70% 以上。", fit: "适合低血反打、护盾或操作空间充足的局。", entrance: "风险事件", stats: { lowHpDamage: 0.45, healCapPct: 0.7 }, costStats: { healCapPct: 0.7 }, track: "低血增伤" },
+    { id: "edge_gamble", type: "邪契", name: "剑走偏锋", gain: "暴击率和暴击伤害提高。", cost: "非暴击伤害降低。", fit: "适合已有青锋追影、剑心戒或高暴击剑修局。", entrance: "第一精英后/风险事件", stats: { critRate: 0.16, critDamage: 0.45, nonCritDamagePct: -0.18 }, costStats: { nonCritDamagePct: -0.18 }, track: "暴击收益" },
+    { id: "thunder_overload", type: "邪契", name: "引雷过载", gain: "雷击弹跳和雷爆范围提高。", cost: "周期生成反噬雷预警。", fit: "适合雷域连锁、雷暴和控制充足的雷修局。", entrance: "风险事件/小Boss后", stats: { chainJumps: 1, thunderBurstRadius: 30, backlashLightning: 1 }, costStats: { backlashLightning: 1 }, track: "反噬雷次数" },
+    { id: "relic_addiction", type: "邪契", name: "噬宝成瘾", gain: "装备技伤害提高。", cost: "装备技空窗时玩家伤害降低。", fit: "适合装备技多、法宝/装备触发频繁的局。", entrance: "风险事件", stats: { gearSkillDamagePct: 0.35, gearIdlePenalty: 0.16 }, costStats: { gearIdlePenalty: 0.16 }, track: "空窗惩罚" },
+    { id: "swarm_tribulation", type: "劫契", name: "妖潮劫", gain: "怪物数量和灵气掉落提高。", cost: "战场压力上升。", fit: "适合清怪能力已成型、想快速升级的局。", entrance: "小Boss后/风险事件", stats: { monsterCountPct: 0.35, xpGain: 0.18 }, costStats: { monsterCountPct: 0.35 }, track: "额外怪物" },
+    { id: "elite_tribulation", type: "劫契", name: "精英劫", gain: "后续精英增加，装备品质提高。", cost: "精英生命提高。", fit: "适合 Boss/精英伤害高、想冲高价值装备的局。", entrance: "小Boss后/风险事件", stats: { eliteExtra: 1, gearQualityBonus: 10, eliteHpPct: 0.3 }, costStats: { eliteHpPct: 0.3 }, track: "额外精英" },
+    { id: "blood_moon_tribulation", type: "劫契", name: "血月劫", gain: "吸血和治疗提高。", cost: "敌人伤害提高。", fit: "适合回春/吸血局，能把高压转成续航收益。", entrance: "风险事件", stats: { leech: 0.04, healingPct: 0.25, enemyDamagePct: 0.18 }, costStats: { enemyDamagePct: 0.18 }, track: "治疗收益" }
+  ],
+
+  SPIRIT_CHEST: {
+    rareUpgrades: ["sword_pierce_adv", "sword_mastery_adv", "thunder_chain_adv", "treasure_surge_adv"],
+    pacts: ["severed_meridian_sword", "edge_gamble", "thunder_overload", "relic_addiction"],
+    gear: ["qf_sword", "sword_ring", "thunder_staff", "relic_jade"],
+    relicBoosts: ["qf_box", "thunder_pearl", "gourd", "fire_pearl"]
+  },
+
   ENEMIES: [
     { id: "spirit", name: "游魂", role: "normal", behavior: "swarm", hp: 18, damage: 6, speed: 90, xp: 1, color: "#8b5e57" },
     { id: "runner", name: "疾妖", role: "normal", behavior: "runner", hp: 14, damage: 5, speed: 165, xp: 1, color: "#c46f55" },
