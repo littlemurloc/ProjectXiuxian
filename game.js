@@ -2,7 +2,91 @@ const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 const DATA = window.GAME_DATA;
 
+const VESSEL_SLOTS = ["兵器", "灵佩", "护符"];
+const MERCHANT_CONFIG = {
+  refreshCost: 12,
+  lockCost: 8,
+  offerLife: 45,
+  triggers: [
+    { kills: 80, time: 105 },
+    { kills: 220, time: 240 },
+    { kills: 420, time: 390 }
+  ],
+  types: [
+    { id: "class", name: "兵铸师", desc: "更偏向当前职业与核心输出词条。" },
+    { id: "relic", name: "闲云野鹤", desc: "更偏向已装填法宝和法宝路线。" },
+    { id: "archetype", name: "游方商人", desc: "更偏向当前成型流派词条。" },
+    { id: "general", name: "杂货商人", desc: "提供通用补强与过渡灵器。" }
+  ]
+};
+
+function normalizeEquipmentCatalog() {
+  const slotMap = {
+    "姝﹀櫒": "兵器",
+    "武器": "兵器",
+    "鎴掓寚": "灵佩",
+    "鐜変僵": "灵佩",
+    "戒指": "灵佩",
+    "玉佩": "灵佩",
+    "鎶ょ": "护符",
+    "娉曡": "护符",
+    "鐏甸澊": "护符",
+    "护符": "护符",
+    "法袍": "护符",
+    "灵靴": "护符"
+  };
+  DATA.EQUIPMENT_SLOTS = [...VESSEL_SLOTS];
+  DATA.EQUIPMENT.forEach((item, index) => {
+    item.slot = slotMap[item.slot] || (index % 3 === 0 ? "兵器" : index % 3 === 1 ? "灵佩" : "护符");
+    item.price = item.price || Math.max(18, Math.round((item.score || 30) * (item.quality && item.quality.includes("稀") ? 1.35 : 1)));
+    item.blueprintUnlocked = index < 12;
+    item.merchantTags = item.merchantTags || ["general"];
+    if (item.tags?.some(tag => ["鍓戜慨", "闆蜂慨", "剑修", "雷修"].includes(tag))) item.merchantTags.push("class");
+    if (isRelicGear(item)) item.merchantTags.push("relic");
+  });
+  const templates = [
+    ["sword_talisman", "剑意护符", "护符", ["剑修", "暴击"], { critRate: 0.05, swordDamagePct: 0.08 }],
+    ["thunder_badge", "雷印灵佩", "灵佩", ["雷修", "雷击"], { chainJumps: 1, relicHaste: 0.06 }],
+    ["blood_blade", "血纹兵器", "兵器", ["吸血", "生存"], { leech: 0.025, attackPct: 0.06 }],
+    ["wind_jade", "逐风灵佩", "灵佩", ["机动", "通用"], { moveSpeedPct: 0.08, pickup: 0.12 }],
+    ["boss_ward", "镇妖护符", "护符", ["Boss", "生存"], { bossDamage: 0.12, maxHp: 10 }],
+    ["relic_seal", "器灵法印", "护符", ["灵宝", "爆发"], { relicHaste: 0.14, attackPct: 0.04 }],
+    ["drop_coin", "聚财灵佩", "灵佩", ["掉落", "通用"], { dropRate: 0.07, xpGain: 0.05 }],
+    ["pierce_spear", "贯云兵器", "兵器", ["剑修", "穿透"], { pierce: 1, attackPct: 0.08 }],
+    ["frost_amulet", "寒镜护符", "护符", ["控制", "雷击"], { slowOnHit: 0.12, damageTaken: -0.04 }],
+    ["crit_jade", "会心灵佩", "灵佩", ["暴击", "通用"], { critRate: 0.06, critDamage: 0.18 }],
+    ["guard_blade", "护身兵器", "兵器", ["生存", "通用"], { maxHp: 16, damageTaken: -0.04 }],
+    ["storm_token", "风雷灵佩", "灵佩", ["雷修", "Boss"], { bossDamage: 0.12, chainJumps: 1 }]
+  ];
+  templates.forEach(([id, name, slot, tags, stats], index) => {
+    if (DATA.EQUIPMENT.some(item => item.id === id)) return;
+    DATA.EQUIPMENT.push({
+      id,
+      name,
+      slot,
+      quality: index % 4 === 0 ? "稀有" : "精良",
+      main: Object.keys(stats).join(" / "),
+      sub: tags,
+      special: "器谱解锁后可在局内灵器商人处刷新出现。",
+      tags,
+      score: 34 + index * 2,
+      price: 32 + index * 4,
+      stats,
+      blueprintUnlocked: false,
+      merchantTags: ["general", index % 2 ? "archetype" : "class"]
+    });
+  });
+}
+
+normalizeEquipmentCatalog();
+
 const keys = new Set();
+const THUNDER_SOURCE_RADIUS = {
+  basic: 180,
+  thunder_pearl: 220,
+  thunder_staff: 140,
+  thunder_domain_core: 140
+};
 
 const state = {
   screen: "prep",
@@ -53,10 +137,21 @@ const state = {
   candidateGear: [],
   gearBank: [],
   currentCandidateId: null,
+  runVessels: {},
+  coins: 0,
+  coinStats: { earned: 0, spent: 0, refreshed: 0, locked: 0 },
+  unlockedBlueprintIds: new Set(DATA.EQUIPMENT.filter(item => item.blueprintUnlocked).map(item => item.id)),
+  runBlueprintUnlocks: [],
+  boughtVessels: [],
+  merchantState: { active: false, count: 0, type: null, offers: [], lockedId: null, expiresAt: 0, lastType: null, guaranteedRelevant: false },
+  pendingMerchantPurchase: null,
   runEvents: [],
   eventLog: [],
   result: null,
-  equippedRelics: ["qf_box", "bell"],
+  equippedRelics: [],
+  preferredRelic: "qf_box",
+  relicLoadChoices: [],
+  relicLoadOffered: [false, false],
   relicProgress: {},
   classProgress: {},
   stats: {},
@@ -95,7 +190,8 @@ const state = {
   warningText: "",
   warningTimer: 0,
   judgementTimer: 0,
-  attackSeq: 0
+  attackSeq: 0,
+  lastPierceNotice: 0
 };
 
 function createStats() {
@@ -127,6 +223,7 @@ function createStats() {
     overhealShield: 0,
     wideSwordEvery: 0,
     thunderStaffArc: 0,
+    thunderChainRadius: 180,
     swordRingShadow: 0,
     paralyzeDamage: 0,
     smartParalyze: 0,
@@ -178,6 +275,7 @@ function emptyStats() {
     overhealShield: 0,
     wideSwordEvery: 0,
     thunderStaffArc: 0,
+    thunderChainRadius: 0,
     swordRingShadow: 0,
     paralyzeDamage: 0,
     smartParalyze: 0,
@@ -287,7 +385,7 @@ function tickSkillNotice(dt) {
 }
 
 function getRunFacts(overrides = {}) {
-  const equippedGear = overrides.equippedGear || state.equippedGear;
+  const equippedGear = overrides.equippedGear || state.runVessels || state.equippedGear;
   return {
     className: state.selectedClass.name,
     classId: state.selectedClass.id,
@@ -377,6 +475,50 @@ function gainSpirit(amount, reason) {
   }
 }
 
+function offerRelicLoad(slot, reason) {
+  if (!state.running || state.equippedRelics.length >= (DATA.RELIC_LOAD_CONFIG?.slots || 2)) return;
+  const index = Math.max(0, Math.min(1, slot - 1));
+  if (state.relicLoadOffered[index]) return;
+  state.relicLoadOffered[index] = true;
+  addLoot("法宝装填", `${reason}，选择 1 件法宝装入本局槽位。`, "good");
+  enqueueReward({ type: "relicLoad", slot });
+}
+
+function pickRelicLoadChoices() {
+  const available = DATA.RELICS.filter(relic => !state.equippedRelics.includes(relic.id));
+  if (!available.length) return [];
+  const picked = [];
+  const preferred = available.find(relic => relic.id === state.preferredRelic);
+  const highest = [...available].sort((a, b) => {
+    const ap = state.relicProgress[a.id] || { level: 1, star: 0 };
+    const bp = state.relicProgress[b.id] || { level: 1, star: 0 };
+    return (bp.level * 10 + bp.star * 3) - (ap.level * 10 + ap.star * 3);
+  })[0];
+  [preferred, highest].forEach(relic => {
+    if (relic && !picked.some(item => item.id === relic.id)) picked.push(relic);
+  });
+  const rest = available.filter(relic => !picked.some(item => item.id === relic.id));
+  while (picked.length < (DATA.RELIC_LOAD_CONFIG?.choices || 3) && rest.length) {
+    const index = Math.floor(Math.random() * rest.length);
+    picked.push(rest.splice(index, 1)[0]);
+  }
+  return picked;
+}
+
+function loadRelic(id) {
+  const relic = getRelic(id);
+  if (!relic || state.equippedRelics.includes(id) || state.equippedRelics.length >= 2) return;
+  state.equippedRelics.push(id);
+  if (relic.trigger === "active") state.activeRelicCooldowns[id] = 0;
+  if (relic.trigger === "auto") state.relicTimers[id] = relic.cooldown;
+  addRelicPulse(id);
+  addLoot("法宝装填", `${relic.name} 已装填，${relic.skillName} 开始生效。`, "good");
+  recordRunEvent("法宝", `装填 ${relic.name}`);
+  evaluateSynergies();
+  renderBuildSummary();
+  renderRelicStatus();
+}
+
 function spendSpirit(amount, reason) {
   if (state.spirit < amount) {
     addLoot("灵机不足", `${reason}需要 ${amount} 灵机。`, "danger");
@@ -442,7 +584,7 @@ function getPactSituationHint(pact) {
   if (state.maxHp < 95 || state.hp / state.maxHp < 0.45) hints.push("当前生命容错偏低。");
   const hasRecovery = state.stats.leech > 0 || state.equippedRelics.includes("gourd") || hasSynergy("blood_gourd_core");
   if (pact.id === "soul_burn_relic" && !hasRecovery) hints.push("没有吸血/回春，燃魂代价风险高。");
-  const gearSkillCount = Object.values(state.equippedGear).filter(item => item.skillName).length;
+  const gearSkillCount = Object.values(state.runVessels || state.equippedGear).filter(item => item.skillName).length;
   if (pact.id === "relic_addiction" && gearSkillCount < 2) hints.push("装备技较少，噬宝成瘾收益不稳定。");
   return hints.length ? hints.join(" ") : "当前局势可接受，但仍需承担明确代价。";
 }
@@ -525,7 +667,7 @@ function pickChestRewards() {
     .filter(Boolean)
     .sort((a, b) => scoreFit(b) - scoreFit(a))[0];
   if (gear) rewards.push({ kind: "gear", id: gear.id, title: `高适配装备 · ${gear.name}`, gain: gear.mechanic || gear.special, detail: `${gear.slot} / ${gear.quality}` });
-  const relicId = (config.relicBoosts || []).find(id => state.equippedRelics.includes(id)) || (config.relicBoosts || [])[0];
+  const relicId = (config.relicBoosts || []).find(id => state.equippedRelics.includes(id));
   const relic = getRelic(relicId);
   if (relic) rewards.push({ kind: "relic", id: relic.id, title: `法宝强化 · ${relic.name}`, gain: "本局立刻重置冷却，并永久记录一次法宝养成进度。", detail: relic.skillName || relic.type });
   return rewards.slice(0, 4);
@@ -565,7 +707,11 @@ function chooseChestReward(key) {
   }
   if (kind === "gear") {
     const base = DATA.EQUIPMENT.find(item => item.id === id);
-    if (base) receiveEquipment({ ...base, uid: `${base.id}-chest-${Date.now()}`, source: "灵匣", score: base.score + 12 });
+    if (base) {
+      state.unlockedBlueprintIds.add(base.id);
+      if (!state.runBlueprintUnlocks.some(item => item.id === base.id)) state.runBlueprintUnlocks.unshift(base);
+      addLoot("灵匣器谱", `${base.name} 已解锁，今后可在局内装备商店中刷新出现。`, "good");
+    }
   }
   if (kind === "relic") {
     const progress = state.relicProgress[id];
@@ -580,6 +726,41 @@ function chooseChestReward(key) {
   renderBuildSummary();
   updateUi();
   completeReward("chest");
+}
+
+function showRelicLoadModal(slot) {
+  document.getElementById("relicLoadTitle").textContent = `法宝装填 · 第 ${slot} 格`;
+  document.getElementById("relicLoadHint").textContent = "从局外法宝库中选择 1 件装入本局，装填后立即生效。";
+  const container = document.getElementById("relicLoadChoices");
+  container.innerHTML = state.relicLoadChoices.map(relic => {
+    const progress = state.relicProgress[relic.id] || { level: 1, star: 0 };
+    const preferred = relic.id === state.preferredRelic;
+    return `
+      <div class="pact-card chest-card">
+        <strong>${relic.name}${preferred ? " · 偏好" : ""}</strong>
+        <span>${relic.type} · ${relic.skillName}</span>
+        <span>养成：Lv.${progress.level} · ${progress.star}星</span>
+        <span>${relic.tags.join(" / ")}</span>
+        <button class="primary" data-relic-load="${relic.id}">装填法宝</button>
+      </div>
+    `;
+  }).join("");
+  container.querySelectorAll("[data-relic-load]").forEach(button => {
+    button.addEventListener("click", () => chooseRelicLoad(button.dataset.relicLoad));
+  });
+  document.getElementById("relicLoadModal").classList.remove("hidden");
+}
+
+function hideRelicLoadModal() {
+  document.getElementById("relicLoadModal").classList.add("hidden");
+}
+
+function chooseRelicLoad(id) {
+  loadRelic(id);
+  state.relicLoadChoices = [];
+  hideRelicLoadModal();
+  updateUi();
+  completeReward("relicLoad");
 }
 
 function formatTime(seconds) {
@@ -603,6 +784,7 @@ function getClassDamage(target) {
 function resetRun() {
   state.running = true;
   state.paused = false;
+  clearGearNotice();
   setScreen("battle");
   state.time = 0;
   state.level = 1;
@@ -639,10 +821,21 @@ function resetRun() {
   state.upgradeLevels = {};
   state.formedTags = [];
   state.pendingUpgrades = [];
+  state.runVessels = {};
+  state.coins = 0;
+  state.coinStats = { earned: 0, spent: 0, refreshed: 0, locked: 0 };
+  state.runBlueprintUnlocks = [];
+  state.boughtVessels = [];
+  state.merchantState = { active: false, count: 0, type: null, offers: [], lockedId: null, expiresAt: 0, lastType: state.merchantState?.lastType || null, guaranteedRelevant: false };
+  state.pendingMerchantPurchase = null;
+  if (!state.activeReward) state.paused = false;
   state.candidateGear = [];
   state.currentCandidateId = null;
   state.runEvents = [];
   state.result = null;
+  state.equippedRelics = [];
+  state.relicLoadChoices = [];
+  state.relicLoadOffered = [false, false];
   state.upgradeStats = emptyStats();
   state.gearStats = emptyStats();
   state.pactStats = emptyStats();
@@ -651,10 +844,6 @@ function resetRun() {
   state.spawnTimer = 0;
   state.relicTimers = {};
   state.activeRelicCooldowns = {};
-  state.equippedRelics.forEach(id => {
-    const relic = getRelic(id);
-    if (relic?.trigger === "active") state.activeRelicCooldowns[id] = 0;
-  });
   state.bellWindow = 0;
   state.bellFirePending = null;
   state.gourdTimer = 0;
@@ -691,10 +880,14 @@ function resetRun() {
   state.warningText = "";
   state.warningTimer = 0;
   state.judgementTimer = 0;
+  state.lastPierceNotice = state.stats.pierce || 0;
   clearUpgradeChoices();
   hideGearModal();
   hidePactModal();
   hideChestModal();
+  hideRelicLoadModal();
+  hideMerchantModal();
+  hideMerchantConfirmModal();
   hideSummaryModal();
   addLoot("试炼开始", `${state.selectedClass.name}进入${state.difficulty.name} · ${state.trialMode.name}。`, "good");
   recordRunEvent("开局", `${state.selectedClass.name} · ${state.difficulty.name} · ${state.trialMode.name}`);
@@ -714,6 +907,7 @@ function endRun(reason = "manual") {
   hideGearModal();
   hidePactModal();
   hideChestModal();
+  hideRelicLoadModal();
   const reward = Math.floor((state.kills * 2 + state.level * 20) * state.difficulty.reward);
   state.jade += reward;
   state.rerollStone += Math.max(1, Math.floor(state.kills / 35));
@@ -723,6 +917,10 @@ function endRun(reason = "manual") {
   addLoot("结算奖励", `获得 ${reward} 灵石，${state.result.title}，主流派 ${getMainBuildTag()}。`, "good");
   logEvent("结算", `${state.result.title} · ${state.result.survival} · ${state.result.mainBuild}`);
   showSummaryModal();
+  state.runVessels = {};
+  state.coins = 0;
+  state.merchantState.active = false;
+  recomputeGearStats();
   updateUi();
 }
 
@@ -738,7 +936,8 @@ function applyClassExperience(amount) {
 
 function chooseClass(id) {
   state.selectedClass = DATA.CLASSES.find(item => item.id === id) || DATA.CLASSES[0];
-  state.equippedRelics = state.selectedClass.id === "thunder" ? ["thunder_pearl", "ice_mirror"] : ["qf_box", "bell"];
+  state.preferredRelic = state.selectedClass.id === "thunder" ? "thunder_pearl" : "qf_box";
+  if (!state.running) state.equippedRelics = [];
   state.upgradeStats = emptyStats();
   state.gearStats = emptyStats();
   combineStats();
@@ -808,6 +1007,7 @@ function isUpgradeAvailable(upgrade) {
   const maxLevel = upgrade.maxLevel || 1;
   if (level >= maxLevel) return false;
   if (upgrade.type !== "basic" && level > 0) return false;
+  if (upgrade.tags.includes("灵宝") && state.equippedRelics.length === 0) return false;
   if (upgrade.requiresTags?.length) {
     const counts = getTagCounts();
     return upgrade.requiresTags.some(tag => (counts[tag] || 0) >= 3);
@@ -947,6 +1147,17 @@ function processRewardQueue() {
       return;
     }
     showChestModal();
+    updateUi();
+    return;
+  }
+  if (reward.type === "relicLoad") {
+    state.relicLoadChoices = pickRelicLoadChoices();
+    if (!state.relicLoadChoices.length) {
+      state.activeReward = null;
+      processRewardQueue();
+      return;
+    }
+    showRelicLoadModal(reward.slot || state.equippedRelics.length + 1);
     updateUi();
   }
 }
@@ -1304,6 +1515,14 @@ function nearestEnemy(from = state.player, ignored = new Set()) {
     .sort((a, b) => a.dist - b.dist)[0]?.enemy;
 }
 
+function nearestEnemyInRadius(from = state.player, ignored = new Set(), radius = Infinity) {
+  return state.enemies
+    .filter(enemy => !ignored.has(enemy))
+    .map(enemy => ({ enemy, dist: distance(enemy, from) }))
+    .filter(item => item.dist <= radius)
+    .sort((a, b) => a.dist - b.dist)[0]?.enemy;
+}
+
 function fireSword() {
   const target = nearestEnemy();
   if (!target) return;
@@ -1346,6 +1565,11 @@ function fireSword() {
     trailTimer: 0
   });
   if (relicBoost) addStrengthSource("法宝触发后飞剑穿透 +1");
+  if (state.stats.pierce > state.lastPierceNotice) {
+    state.lastPierceNotice = state.stats.pierce;
+    showSkillNotice("gear", "pierce_notice", "飞剑贯穿 +1");
+    addFloatText(state.player.x, state.player.y - 58, "飞剑贯穿 +1", "#d8b45a");
+  }
   if (wideSword) {
     addStrengthSource("青锋剑：第 5 次飞剑变为宽剑气");
     trackSkillStat("gear", "qf_sword", "青锋剑：宽剑气");
@@ -1359,13 +1583,20 @@ function fireSword() {
   }
 }
 
-function fireThunder() {
+function getThunderSourceRadius(source = "basic") {
+  return THUNDER_SOURCE_RADIUS[source] || THUNDER_SOURCE_RADIUS.basic;
+}
+
+function fireThunder(sourceKind = "basic") {
   const first = nearestEnemy();
   if (!first) return;
   const hit = new Set();
   let source = state.player;
   let target = first;
   let damage = getClassDamage(target);
+  const chainRadius = getThunderSourceRadius(sourceKind);
+  const staffRadius = getThunderSourceRadius("thunder_staff");
+  const domainRadius = getThunderSourceRadius("thunder_domain_core");
   const bloodLeech = state.bloodRelicLeech > 0;
   if (bloodLeech) state.bloodRelicLeech = 0;
   const boostedJump = state.relicThunderBoost > 0 || (state.relicBoostTimer > 0 && state.selectedClass.id === "thunder");
@@ -1399,7 +1630,7 @@ function fireThunder() {
     hit.add(target);
     source = target;
     damage *= Math.max(0.25, 1 - state.stats.chainFalloff);
-    if (i === jumps - 1 || !nearestEnemy(source, hit)) {
+    if (i === jumps - 1 || !nearestEnemyInRadius(source, hit, chainRadius)) {
       addEffect({ kind: "blast", x: source.x, y: source.y, r: (state.stats.thunderStaffArc ? 72 : 58) + Math.floor((state.stats.thunderBurstRadius || 0) * 0.5), damage: getClassDamage(source) * (state.stats.thunderStaffArc ? 0.35 : 0.22), life: 0.24, color: "#60b6ff", label: state.stats.thunderStaffArc ? "电弧" : "终跳" });
       addStrengthSource("雷击最后一跳小范围爆炸");
       if (state.stats.thunderStaffArc) {
@@ -1407,7 +1638,7 @@ function fireThunder() {
         showSkillNotice("gear", "thunder_staff", "引雷杖：余雷电弧");
       }
       if (hasSynergy("jade_thunder_core")) {
-        const extra = nearestEnemy(source, hit);
+        const extra = nearestEnemyInRadius(source, hit, staffRadius);
         if (extra) {
           addEffect({ kind: "line", x1: source.x, y1: source.y, x2: extra.x, y2: extra.y, life: 0.18, color: "#d8e8ff" });
           damageEnemy(extra, getClassDamage(extra) * 0.42, "jadeThunder");
@@ -1416,23 +1647,24 @@ function fireThunder() {
       }
     }
     if (hasSynergy("thunder_domain_core") && target?.slow > 0) {
-      const extra = nearestEnemy(target, hit);
-      if (extra) {
+      const extra = nearestEnemyInRadius(target, hit, domainRadius);
+      if (extra && extra.slow > 0) {
         addEffect({ kind: "line", x1: target.x, y1: target.y, x2: extra.x, y2: extra.y, life: 0.16, color: "#8fd8ff" });
         damageEnemy(extra, getClassDamage(extra) * 0.28, "domainChain");
         triggerSynergy("thunder_domain_core");
       }
     }
     target = state.stats.smartParalyze
-      ? nearestParalyzedEnemy(source, hit) || nearestEnemy(source, hit)
-      : nearestEnemy(source, hit);
+      ? nearestParalyzedEnemy(source, hit, chainRadius) || nearestEnemyInRadius(source, hit, chainRadius)
+      : nearestEnemyInRadius(source, hit, chainRadius);
   }
 }
 
-function nearestParalyzedEnemy(from = state.player, ignored = new Set()) {
+function nearestParalyzedEnemy(from = state.player, ignored = new Set(), radius = Infinity) {
   return state.enemies
     .filter(enemy => !ignored.has(enemy) && enemy.slow > 0)
     .map(enemy => ({ enemy, dist: distance(enemy, from) }))
+    .filter(item => item.dist <= radius)
     .sort((a, b) => a.dist - b.dist)[0]?.enemy;
 }
 
@@ -1476,6 +1708,7 @@ function killEnemy(enemy, source = "attack") {
   if (enemy.role === "elite") {
     state.eliteKills += 1;
     if (state.eliteKills <= 2) gainSpirit(1, state.eliteKills === 1 ? "第一精英击败" : "第二精英击败");
+    if (state.eliteKills === 1) offerRelicLoad(2, "第一精英击败");
   }
   if (enemy.id === "charger_elite") offerPacts("firstElite", 0.35);
   if (enemy.id === "stone_boss") {
@@ -1508,7 +1741,7 @@ function createRunResult(reason, reward) {
   let title = "试炼完成";
   if (reason === "death") title = "试炼失败";
   if (reason === "bossKilled") title = "斩妖成功";
-  const gearHighlights = [...Object.values(state.equippedGear), ...state.candidateGear]
+  const gearHighlights = [...Object.values(state.runVessels), ...state.boughtVessels]
     .sort((a, b) => scoreFit(b) - scoreFit(a))
     .slice(0, 4);
   const nextStep = reason === "death"
@@ -1532,6 +1765,9 @@ function createRunResult(reason, reward) {
     pacts: state.acceptedPacts.map(item => ({ ...item })),
     pactRuntime: { ...state.pactRuntime },
     spiritStats: { ...state.spiritStats, unused: state.spirit },
+    coinStats: { ...state.coinStats, unused: state.coins },
+    boughtVessels: state.boughtVessels.map(item => ({ ...item })),
+    blueprintUnlocks: state.runBlueprintUnlocks.map(item => ({ ...item })),
     nextStep
   };
 }
@@ -1541,14 +1777,17 @@ function xpNeeded() {
 }
 
 function maybeDrop(enemy) {
-  const dropChance = enemy.role === "normal" ? 0.08 + state.stats.dropRate : 1;
-  if (Math.random() > dropChance) return;
-  const equipment = createEquipmentDrop(enemy);
-  receiveEquipment(equipment);
+  const coinChance = enemy.role === "normal" ? 0.18 + state.stats.dropRate : 1;
+  if (Math.random() <= coinChance) {
+    const amount = enemy.role === "boss" ? 45 : enemy.role === "elite" ? 24 : 1 + Math.floor(Math.random() * 3);
+    gainCoins(amount, enemy.name);
+  }
+  tryUnlockBlueprint(enemy);
 }
 
 function createEquipmentDrop(enemy) {
-  const base = DATA.EQUIPMENT[Math.floor(Math.random() * DATA.EQUIPMENT.length)];
+  const pool = getEquipmentDropPool();
+  const base = pool[Math.floor(Math.random() * pool.length)] || DATA.EQUIPMENT[0];
   const bonus = enemy.role === "boss" ? 10 : enemy.role === "elite" ? 5 : 0;
   return {
     ...base,
@@ -1558,11 +1797,244 @@ function createEquipmentDrop(enemy) {
   };
 }
 
+function isRelicGear(equipment) {
+  return equipment.tags.includes("灵宝") || equipment.stats?.relicHaste || equipment.stats?.relicJadeEmpower || equipment.id === "spirit_charm";
+}
+
+function getEquipmentDropPool() {
+  if (!state.equippedRelics.length) {
+    const nonRelic = DATA.EQUIPMENT.filter(item => !isRelicGear(item));
+    return [...nonRelic, ...nonRelic, ...nonRelic, ...DATA.EQUIPMENT.filter(isRelicGear)];
+  }
+  const relicTags = new Set(state.equippedRelics.flatMap(id => getRelic(id)?.tags || []));
+  const matched = DATA.EQUIPMENT.filter(item => item.tags.some(tag => relicTags.has(tag)));
+  return [...DATA.EQUIPMENT, ...matched, ...matched];
+}
+
+function gainCoins(amount, reason) {
+  if (amount <= 0) return;
+  state.coins += amount;
+  state.coinStats.earned += amount;
+  addFloatText(state.player.x, state.player.y - 48, `铸币 +${amount}`, "#d8b45a");
+  addLoot("铸币获得", `${reason} 掉落 ${amount} 铸币，本局可在灵器商人处使用。`, "good");
+}
+
+function spendCoins(amount, reason) {
+  if (state.coins < amount) {
+    addLoot("铸币不足", `${reason}需要 ${amount} 铸币。`, "danger");
+    return false;
+  }
+  state.coins -= amount;
+  state.coinStats.spent += amount;
+  return true;
+}
+
+function tryUnlockBlueprint(enemy) {
+  const chance = enemy.role === "boss" ? 0.7 : enemy.role === "elite" ? 0.3 : 0.012 + state.stats.dropRate * 0.08;
+  if (Math.random() > chance) return;
+  const locked = DATA.EQUIPMENT.filter(item => !state.unlockedBlueprintIds.has(item.id));
+  if (!locked.length) return;
+  const pool = getWeightedEquipmentPool("general", locked);
+  const item = (takeWeighted(pool) || { item: locked[0] }).item;
+  state.unlockedBlueprintIds.add(item.id);
+  state.runBlueprintUnlocks.unshift(item);
+  addLoot("获得器谱", `${item.name} 已解锁，今后可在局内装备商店中刷新出现。`, "good");
+  recordRunEvent("器谱", `解锁 ${item.name}`);
+}
+
+function getUnlockedEquipment() {
+  return DATA.EQUIPMENT.filter(item => state.unlockedBlueprintIds.has(item.id));
+}
+
+function getMerchantItemSpecial(item) {
+  if (!item) return "";
+  if (!state.unlockedBlueprintIds.has(item.id)) return "未解锁器谱，不能在商人处购买。";
+  const text = item.special || "";
+  if (text.includes("解锁") || text.includes("瑙ｉ攣")) return "已解锁器谱灵器，可购买后装填到本局。";
+  return text || "已解锁器谱灵器，可购买后装填到本局。";
+}
+
+function getWeightedEquipmentPool(type = "general", source = getUnlockedEquipment()) {
+  const mainTag = getMainBuildTag();
+  const classTags = new Set(state.selectedClass.tags || []);
+  const relicTags = new Set(state.equippedRelics.flatMap(id => getRelic(id)?.tags || []));
+  return source.map(item => {
+    let weight = 8;
+    if (!state.runVessels[item.slot]) weight += 14;
+    if (item.tags.some(tag => classTags.has(tag))) weight += type === "class" ? 24 : 10;
+    if (item.tags.includes(mainTag)) weight += type === "archetype" ? 24 : 10;
+    if (item.tags.some(tag => relicTags.has(tag)) || isRelicGear(item)) weight += type === "relic" ? 24 : 6;
+    if (state.hp / state.maxHp < 0.45 && item.tags.some(tag => ["生存", "鐢熷瓨", "吸血", "鍚歌"].includes(tag))) weight += 16;
+    if (state.merchantState.count === 0 && item.score > 50) weight -= 10;
+    return { item, weight: Math.max(1, weight) };
+  });
+}
+
+function pickMerchantType() {
+  const last = state.merchantState.lastType;
+  const types = [...MERCHANT_CONFIG.types];
+  const hasRelevant = state.merchantState.guaranteedRelevant;
+  let pool = types.map(type => {
+    let weight = type.id === "general" ? 9 : 12;
+    if (type.id === "class") weight += 8;
+    if (type.id === "relic" && state.equippedRelics.length) weight += 8;
+    if (type.id === "relic" && !state.equippedRelics.length) weight -= 7;
+    if (last === "general" && type.id === "general") weight = 0;
+    if (!hasRelevant && (type.id === "class" || (state.equippedRelics.length && type.id === "relic"))) weight += 20;
+    return { item: type, weight };
+  });
+  return takeWeighted(pool).item;
+}
+
+function buildMerchantOffers(type, lockedId = state.merchantState.lockedId) {
+  const picked = [];
+  const locked = lockedId ? getUnlockedEquipment().find(item => item.id === lockedId) : null;
+  if (locked) picked.push(locked);
+  const addFrom = predicate => {
+    if (picked.length >= 4) return;
+    const pool = getWeightedEquipmentPool(type.id, getUnlockedEquipment().filter(item => state.unlockedBlueprintIds.has(item.id) && !picked.some(p => p.id === item.id) && predicate(item)));
+    const entry = pool.length ? takeWeighted(pool) : null;
+    if (entry?.item) picked.push(entry.item);
+  };
+  addFrom(item => !state.runVessels[item.slot]);
+  addFrom(item => isGearBuildFit(item));
+  addFrom(item => (item.price || 0) <= Math.max(28, state.coins + 12));
+  addFrom(() => true);
+  while (picked.length < 4) addFrom(() => true);
+  return picked.slice(0, 4).map(item => ({ ...item, uid: `${item.id}-merchant-${Date.now()}-${Math.floor(Math.random() * 10000)}` }));
+}
+
+function updateMerchantEncounter() {
+  const merchant = state.merchantState;
+  if (merchant.active && state.time >= merchant.expiresAt) {
+    merchant.active = false;
+    merchant.offers = [];
+    merchant.type = null;
+    merchant.lockedId = null;
+    merchant.expiresAt = 0;
+    clearGearNotice();
+    return;
+    showGearNotice("灵器商人已离开。");
+  }
+  if (merchant.active || merchant.count >= MERCHANT_CONFIG.triggers.length) return;
+  const trigger = MERCHANT_CONFIG.triggers[merchant.count];
+  if (state.kills < trigger.kills && state.time < trigger.time) return;
+  const type = pickMerchantType();
+  merchant.active = true;
+  merchant.type = type;
+  merchant.count += 1;
+  merchant.lastType = type.id;
+  if (type.id === "class" || type.id === "relic") merchant.guaranteedRelevant = true;
+  merchant.expiresAt = state.time + MERCHANT_CONFIG.offerLife;
+  merchant.offers = buildMerchantOffers(type);
+  showGearNotice(`发现${type.name}，按 E 交易。`);
+  recordRunEvent("商人", `${type.name} 出现`);
+}
+
+function isModalVisible(id) {
+  const element = document.getElementById(id);
+  if (!element || !element.classList || typeof element.classList.contains !== "function") return false;
+  return !element.classList.contains("hidden");
+}
+
+function hasBlockingDecisionModal() {
+  return ["upgradeModal", "pactModal", "relicLoadModal", "chestModal", "merchantConfirmModal", "gearModal"].some(isModalVisible);
+}
+
+function clearStaleRewardBlocker() {
+  if (!state.activeReward || hasBlockingDecisionModal()) return;
+  state.activeReward = null;
+}
+
+function openMerchant() {
+  clearStaleRewardBlocker();
+  if (!state.running || state.activeReward || !state.merchantState.active) return;
+  state.paused = true;
+  clearGearNotice();
+  showMerchantModal();
+  updateUi();
+}
+
+function closeMerchant() {
+  hideMerchantModal();
+  if (!state.activeReward) state.paused = false;
+  if (state.merchantState.active && state.merchantState.type) {
+    showGearNotice(`发现${state.merchantState.type.name}，按 E 交易。`);
+  } else {
+    clearGearNotice();
+  }
+  updateUi();
+}
+
+function refreshMerchantOffers() {
+  if (!state.merchantState.active) return;
+  if (!spendCoins(MERCHANT_CONFIG.refreshCost, "刷新商品")) return;
+  state.coinStats.refreshed += 1;
+  state.merchantState.offers = buildMerchantOffers(state.merchantState.type);
+  showMerchantModal();
+  updateUi();
+}
+
+function lockMerchantOffer(id) {
+  const offer = state.merchantState.offers.find(item => item.id === id);
+  if (!offer || state.merchantState.lockedId === id) return;
+  if (!spendCoins(MERCHANT_CONFIG.lockCost, "锁定商品")) return;
+  state.coinStats.locked += 1;
+  state.merchantState.lockedId = id;
+  showMerchantModal();
+  updateUi();
+}
+
+function buyMerchantOffer(uid) {
+  const offer = state.merchantState.offers.find(item => item.uid === uid && state.unlockedBlueprintIds.has(item.id));
+  if (!offer) return;
+  const current = state.runVessels[offer.slot];
+  const item = { ...offer, source: state.merchantState.type?.name || "灵器商人", purchasePrice: offer.price || 30 };
+  if (current) {
+    if (state.coins < item.purchasePrice) return addLoot("铸币不足", `购买${item.name}需要 ${item.purchasePrice} 铸币。`, "danger");
+    state.pendingMerchantPurchase = item;
+    showMerchantConfirmModal(item, current);
+    return;
+  }
+  if (!spendCoins(item.purchasePrice, `购买${item.name}`)) return;
+  receiveEquipment(item);
+  afterMerchantPurchase(item);
+}
+
+function afterMerchantPurchase(item) {
+  state.merchantState.active = false;
+  state.merchantState.lockedId = null;
+  state.merchantState.offers = [];
+  state.merchantState.type = null;
+  state.merchantState.expiresAt = 0;
+  hideMerchantModal();
+  hideMerchantConfirmModal();
+  state.pendingMerchantPurchase = null;
+  state.activeReward = null;
+  state.paused = false;
+  clearGearNotice();
+  addLoot("灵器购买", `${item.name} 已装填，本次商人离开。`, "good");
+  updateUi();
+}
+
+function legacyAfterMerchantPurchaseUnused(item) {
+  state.merchantState.active = false;
+  state.merchantState.lockedId = state.merchantState.lockedId === item.id ? null : state.merchantState.lockedId;
+  hideMerchantModal();
+  hideMerchantConfirmModal();
+  state.pendingMerchantPurchase = null;
+  state.activeReward = null;
+  state.rewardQueue = state.rewardQueue.filter(reward => reward.type !== "gear");
+  state.paused = false;
+  addLoot("灵器购买", `${item.name} 已装填，本次商人离开。`, "good");
+  updateUi();
+};
+
 function receiveEquipment(equipment) {
-  const current = state.equippedGear[equipment.slot];
-  if (!current) {
-    if (!state.gearBank.some(item => item.uid === equipment.uid)) state.gearBank.unshift(equipment);
-    state.equippedGear[equipment.slot] = equipment;
+  const current = state.runVessels[equipment.slot];
+  if (!current || state.pendingMerchantPurchase === equipment) {
+    if (!state.boughtVessels.some(item => item.uid === equipment.uid)) state.boughtVessels.unshift(equipment);
+    state.runVessels[equipment.slot] = equipment;
     recomputeGearStats();
     if (equipment.mechanic) {
       addStrengthSource(`${equipment.name}：${equipment.mechanic}`);
@@ -1571,6 +2043,9 @@ function receiveEquipment(equipment) {
     addLoot(equipment.name, `${equipment.quality}${equipment.slot}自动装备。`, "good");
     recordRunEvent("装备", `获得并装备 ${equipment.name}`);
   } else {
+    state.pendingMerchantPurchase = equipment;
+    showMerchantConfirmModal(equipment, current);
+    return;
     const forcePopup = shouldForceGearPopup(equipment, current);
     const highValue = isHighValueGear(equipment, current);
     if (!forcePopup && !highValue) {
@@ -1600,13 +2075,13 @@ function receiveEquipment(equipment) {
 
 function recomputeGearStats() {
   const next = emptyStats();
-  Object.values(state.equippedGear).forEach(item => {
+  Object.values(state.runVessels || {}).forEach(item => {
     Object.entries(item.stats || {}).forEach(([key, value]) => {
       if (key === "maxHp") return;
       next[key] = (next[key] || 0) + value;
     });
   });
-  const hpBonus = Object.values(state.equippedGear).reduce((sum, item) => sum + (item.stats?.maxHp || 0), 0);
+  const hpBonus = Object.values(state.runVessels || {}).reduce((sum, item) => sum + (item.stats?.maxHp || 0), 0);
   const previousMax = state.maxHp;
   state.gearStats = next;
   state.maxHp = Math.max(1, state.selectedClass.maxHp + hpBonus + (state.upgradeStats.maxHp || 0) + (state.pactStats.maxHp || 0));
@@ -1617,17 +2092,19 @@ function recomputeGearStats() {
 function scoreFit(equipment) {
   const mainTag = getMainBuildTag();
   let fit = equipment.score;
+  const relicTags = new Set(state.equippedRelics.flatMap(id => getRelic(id)?.tags || []));
   equipment.tags.forEach(tag => {
     if (state.selectedClass.tags.includes(tag)) fit += 10;
     if (tag === mainTag) fit += 12;
-    if (state.equippedRelics.some(id => getRelic(id)?.tags.includes(tag))) fit += 6;
+    if (relicTags.has(tag)) fit += 6;
   });
+  if (!state.equippedRelics.length && isRelicGear(equipment)) fit -= 8;
   fit += getEquipmentSynergyImpact(equipment).score;
   return fit;
 }
 
-function getEquipmentSynergyImpact(candidate, current = state.equippedGear[candidate.slot]) {
-  const nextGear = { ...state.equippedGear, [candidate.slot]: candidate };
+function getEquipmentSynergyImpact(candidate, current = (state.runVessels || state.equippedGear)[candidate.slot]) {
+  const nextGear = { ...(state.runVessels || state.equippedGear), [candidate.slot]: candidate };
   const nextFacts = getRunFacts({ equippedGear: nextGear });
   const tierScore = { light: 8, core: 15, mutation: 25 };
   const activated = DATA.SYNERGIES.filter(synergy => !state.activeSynergies.includes(synergy.id) && getSynergyProgress(synergy, nextFacts).met);
@@ -1660,10 +2137,11 @@ function isRareGear(equipment) {
 
 function isGearBuildFit(equipment) {
   const mainTag = getMainBuildTag();
+  const relicTags = new Set(state.equippedRelics.flatMap(id => getRelic(id)?.tags || []));
   return equipment.tags.some(tag => (
     state.selectedClass.tags.includes(tag)
     || tag === mainTag
-    || state.equippedRelics.some(id => getRelic(id)?.tags.includes(tag))
+    || relicTags.has(tag)
   ));
 }
 
@@ -1708,6 +2186,7 @@ function getGearRecommendation(candidate, current) {
   const impact = getEquipmentSynergyImpact(candidate, current);
   if (impact.lost.some(item => item.tier !== "light")) return `警告：将失去 ${impact.lost.map(item => item.name).join(" / ")}`;
   if (impact.activated.length) return `可激活：${impact.activated.map(item => item.name).join(" / ")}`;
+  if (!state.equippedRelics.length && isRelicGear(candidate)) return "适合法宝路线，装填相关法宝后价值提高";
   if (!current) return "空位，推荐装备";
   if (candidateScore >= currentScore + 8) return "推荐替换";
   if (candidateScore + 8 < currentScore) return "建议留到结算";
@@ -1935,12 +2414,14 @@ function updateProjectiles(dt) {
       if (projectile.dead || projectile.hit.has(enemy)) return;
       if (distance(projectile, enemy) > enemy.radius + projectile.radius) return;
       damageEnemy(enemy, projectile.damage, projectile.crit ? "swordCrit" : "sword");
+      addFloatText(enemy.x, enemy.y - 18, Math.ceil(projectile.damage).toString(), projectile.crit ? "#fff0a6" : "#f3efe1");
       if (projectile.bloodLeech) {
         const result = healPlayer(projectile.damage * 0.08, { overhealShield: true, shieldCap: 45, synergyId: "blood_relic_mutation" });
         if (result.healed + result.shielded > 0) addFloatText(state.player.x, state.player.y - 36, "血炼吸收", "#d868ff");
       }
       projectile.hit.add(enemy);
       projectile.pierceLeft -= 1;
+      if (projectile.kind === "sword" && projectile.pierceLeft <= 0) projectile.dead = true;
       if (projectile.kind === "sword") {
         state.swordPierceHits += 1;
         if (state.swordPierceHits % 3 === 0) {
@@ -1982,7 +2463,7 @@ function updateProjectiles(dt) {
           if (target !== enemy && distance(target, enemy) < 76) damageEnemy(target, projectile.damage * 0.32, "cleave");
         });
       }
-      if (projectile.pierceLeft < 0) projectile.dead = true;
+      if (projectile.pierceLeft <= 0) projectile.dead = true;
     });
     if (projectile.life <= 0) {
       if (projectile.returnBlade && !projectile.returned) {
@@ -2171,7 +2652,7 @@ function updateRelics(dt) {
     if (id === "thunder_pearl") {
       addRelicPulse("thunder_pearl");
       activateRelicCombatBoost("thunder_pearl");
-      fireThunder();
+      fireThunder("thunder_pearl");
       addLoot("引雷珠", "法宝雷击补充清怪。");
     }
     if (id === "ice_mirror") {
@@ -2211,6 +2692,10 @@ function update(dt) {
   state.swordRainTimer = Math.max(0, state.swordRainTimer - dt);
   state.swordRingTimer = Math.max(0, state.swordRingTimer - dt);
   state.pactRuntime.backlashTimer = Math.max(0, (state.pactRuntime.backlashTimer || 0) - dt);
+  updateMerchantEncounter();
+  const relicConfig = DATA.RELIC_LOAD_CONFIG || { first: { kills: 90, fallbackTime: 70 }, second: { fallbackTime: 210 } };
+  if (!state.relicLoadOffered[0] && state.kills >= relicConfig.thresholds[0]) offerRelicLoad(1, "击杀 50 只怪");
+  if (!state.relicLoadOffered[1] && state.kills >= relicConfig.thresholds[1]) offerRelicLoad(2, "击杀 150 只怪");
   if (state.stats.backlashLightning && state.pactRuntime.backlashTimer <= 0) {
     addHazard({
       kind: "circle",
@@ -2526,13 +3011,14 @@ function renderClassList() {
 function renderPrepSummary() {
   const container = document.getElementById("prepSummary");
   if (!container) return;
-  const relics = state.equippedRelics.map(id => getRelic(id)?.name).filter(Boolean).join(" / ");
-  const gearCount = Object.keys(state.equippedGear).length;
+  const preferred = getRelic(state.preferredRelic);
+  const relicCount = DATA.RELICS.length;
+  const blueprintCount = state.unlockedBlueprintIds.size;
   container.innerHTML = `
     <div class="equipment-card"><strong>职业</strong><span>${state.selectedClass.name} · ${state.selectedClass.desc}</span></div>
     <div class="equipment-card"><strong>试炼</strong><span>${state.difficulty.name} · ${state.trialMode.name}</span></div>
-    <div class="equipment-card"><strong>法宝</strong><span>${relics || "未选择"}</span></div>
-    <div class="equipment-card"><strong>装备</strong><span>${gearCount}/6 件已穿戴</span></div>
+    <div class="equipment-card"><strong>法宝库</strong><span>已解锁 ${relicCount} 件 · 偏好 ${preferred?.name || "未设置"} · 本局法宝将在试炼中逐步装填</span></div>
+    <div class="equipment-card"><strong>器谱</strong><span>已解锁 ${blueprintCount}/${DATA.EQUIPMENT.length}；局内通过灵器商人临时购买装填。</span></div>
   `;
 }
 
@@ -2581,7 +3067,7 @@ function renderBuildSummary() {
   const tribulation = state.acceptedPacts.find(item => item.type === "劫契");
   container.innerHTML = `
     <div class="choice-card selected"><strong>${state.selectedClass.name}</strong><span>${state.selectedClass.weapon} · ${state.selectedClass.desc}</span></div>
-    <div class="choice-card"><strong>携带法宝</strong><span>${relics}</span></div>
+    <div class="choice-card"><strong>已装填法宝</strong><span>${relics || "等待装填"}</span></div>
     <div class="choice-card"><strong>构筑倾向</strong><span>${Object.entries(counts).map(([tag, count]) => `${tag} x${count}`).join(" / ") || "尚未形成BD"}</span></div>
     <div class="choice-card"><strong>已激活灵契</strong><span>${activeSynergies.map(item => `${item.name} · ${item.effect}`).join("<br>") || "暂无"}</span></div>
     <div class="choice-card"><strong>接近灵契</strong><span>${nearSynergies.map(({ synergy, progress }) => `${synergy.name}，缺少 ${progress.missingText}`).join("<br>") || "暂无"}</span></div>
@@ -2596,7 +3082,7 @@ function renderEquipment() {
   const container = document.getElementById("equipmentGrid");
   container.innerHTML = "";
   DATA.EQUIPMENT_SLOTS.forEach(slot => {
-    const item = state.equippedGear[slot];
+    const item = state.runVessels[slot];
     const card = document.createElement("div");
     card.className = `equipment-card ${item ? "" : "empty"}`;
     card.innerHTML = item
@@ -2620,12 +3106,33 @@ function renderCandidateGear() {
     const card = document.createElement("button");
     card.className = "loot-card";
     card.innerHTML = `<strong>${item.name}</strong><span>${item.quality}${item.slot} · ${getGearRecommendation(item, current)} · 评分 ${scoreFit(item)}</span>`;
+    if (!state.equippedRelics.length && isRelicGear(item)) card.insertAdjacentHTML("beforeend", `<span>适合法宝路线，装填相关法宝后价值提高</span>`);
     if (item.skillName) card.insertAdjacentHTML("beforeend", `<span>装备技：${item.skillName} · ${item.triggerText || "条件触发"}</span>`);
     if (item.mechanic) card.insertAdjacentHTML("beforeend", `<span>机制：${item.mechanic}</span>`);
     card.addEventListener("click", () => openCandidateGear(item.uid));
     container.appendChild(card);
   });
 }
+
+function renderMerchantStatus() {
+  const container = document.getElementById("candidateGearList");
+  if (!container) return;
+  container.innerHTML = "";
+  const merchant = state.merchantState;
+  if (!merchant.active) {
+    const next = MERCHANT_CONFIG.triggers[merchant.count];
+    container.innerHTML = `<div class="loot-card"><strong>暂无商人</strong><span>${next ? `下一次商人：${next.kills} 击杀或 ${formatTime(next.time)}。` : "本局商人已全部出现。"}</span></div>`;
+    return;
+  }
+  const card = document.createElement("button");
+  card.className = "loot-card";
+  card.innerHTML = `<strong>${merchant.type.name}</strong><span>${merchant.type.desc} · 按 E 交易 · 剩余 ${Math.max(0, Math.ceil(merchant.expiresAt - state.time))} 秒 · 当前铸币 ${state.coins}</span>`;
+  card.addEventListener("click", openMerchant);
+  container.appendChild(card);
+}
+
+const renderOldCandidateGear = renderCandidateGear;
+renderCandidateGear = renderMerchantStatus;
 
 function renderGearNotice() {
   const notice = document.getElementById("gearNotice");
@@ -2642,6 +3149,7 @@ function gearCardHtml(title, item) {
       <span>${item.quality}${item.slot} · 适配评分 ${scoreFit(item)}</span>
       <span>${item.main}</span>
       <span>${(item.sub || []).join(" / ")}</span>
+      ${!state.equippedRelics.length && isRelicGear(item) ? `<span>适合法宝路线，装填相关法宝后价值提高</span>` : ""}
       ${item.skillName ? `<span>装备技：${item.skillName} · ${item.triggerText || "条件触发"}</span>` : ""}
       ${item.mechanic ? `<span>机制：${item.mechanic}</span>` : ""}
       <span>${item.special}</span>
@@ -2683,6 +3191,108 @@ function gearSynergyImpactHtml(candidate, current) {
       ${seriousLost ? `<p>警告：本次替换会断开核心/变质灵契，请确认是否值得。</p>` : ""}
     </div>
   `;
+}
+
+function legacyShowMerchantModalUnused() {
+  const merchant = state.merchantState;
+  if (!merchant.active) return;
+  document.getElementById("merchantTitle").textContent = `${merchant.type.name} · 灵器商人`;
+  document.getElementById("merchantHint").textContent = `${merchant.type.desc} 当前铸币 ${state.coins}，入口剩余 ${Math.max(0, Math.ceil(merchant.expiresAt - state.time))} 秒。`;
+  const container = document.getElementById("merchantGoods");
+  container.innerHTML = merchant.offers.map(item => {
+    const current = state.runVessels[item.slot];
+    const locked = merchant.lockedId === item.id;
+    const affordable = state.coins >= (item.price || 30);
+    return `
+      <div class="pact-card chest-card">
+        <strong>${item.name}${locked ? " · 已锁定" : ""}</strong>
+        <span>${item.quality}${item.slot} · ${item.price || 30} 铸币 · 适配 ${scoreFit(item)}</span>
+        <span>${item.main}</span>
+        <span>${getMerchantItemSpecial(item)}</span>
+        <span>${getGearRecommendation(item, current)}</span>
+        <button class="primary" data-buy-vessel="${item.uid}">${current ? "购买并替换" : "购买装填"}</button>
+        <button data-lock-vessel="${item.id}" ${locked ? "disabled" : ""}>锁定商品 -${MERCHANT_CONFIG.lockCost} 铸币</button>
+      </div>
+    `;
+  }).join("");
+  container.querySelectorAll("[data-buy-vessel]").forEach(button => {
+    button.addEventListener("click", () => buyMerchantOffer(button.dataset.buyVessel));
+  });
+  container.querySelectorAll("[data-lock-vessel]").forEach(button => {
+    button.addEventListener("click", () => lockMerchantOffer(button.dataset.lockVessel));
+  });
+  const refresh = document.getElementById("merchantRefreshBtn");
+  refresh.textContent = `刷新商品 -${MERCHANT_CONFIG.refreshCost} 铸币`;
+  refresh.disabled = state.coins < MERCHANT_CONFIG.refreshCost;
+  document.getElementById("merchantModal").classList.remove("hidden");
+}
+
+function hideMerchantModal() {
+  document.getElementById("merchantModal")?.classList.add("hidden");
+}
+
+function showMerchantModal() {
+  const merchant = state.merchantState;
+  if (!merchant.active) return;
+  document.getElementById("merchantTitle").textContent = `${merchant.type.name} · 灵器商人`;
+  document.getElementById("merchantHint").textContent = `${merchant.type.desc} 当前铸币 ${state.coins}，入口剩余 ${Math.max(0, Math.ceil(merchant.expiresAt - state.time))} 秒。`;
+  const container = document.getElementById("merchantGoods");
+  container.innerHTML = merchant.offers.map(item => {
+    const current = state.runVessels[item.slot];
+    const locked = merchant.lockedId === item.id;
+    const affordable = state.coins >= (item.price || 30);
+    return `
+      <div class="pact-card chest-card">
+        <strong>${item.name}${locked ? " · 已锁定" : ""}</strong>
+        <span>${item.quality}${item.slot} · ${item.price || 30} 铸币 · 适配 ${scoreFit(item)}</span>
+        <span>${item.main}</span>
+        <span>${getMerchantItemSpecial(item)}</span>
+        <span>${getGearRecommendation(item, current)}</span>
+        <button class="primary" data-buy-vessel="${item.uid}" ${affordable ? "" : "disabled"}>${affordable ? (current ? "购买并替换" : "购买装填") : "铸币不足"}</button>
+        <button data-lock-vessel="${item.id}" ${locked || state.coins < MERCHANT_CONFIG.lockCost ? "disabled" : ""}>锁定商品 -${MERCHANT_CONFIG.lockCost} 铸币</button>
+      </div>
+    `;
+  }).join("");
+  container.querySelectorAll("[data-buy-vessel]").forEach(button => {
+    button.addEventListener("click", () => buyMerchantOffer(button.dataset.buyVessel));
+  });
+  container.querySelectorAll("[data-lock-vessel]").forEach(button => {
+    button.addEventListener("click", () => lockMerchantOffer(button.dataset.lockVessel));
+  });
+  const refresh = document.getElementById("merchantRefreshBtn");
+  refresh.textContent = `刷新商品 -${MERCHANT_CONFIG.refreshCost} 铸币`;
+  refresh.disabled = state.coins < MERCHANT_CONFIG.refreshCost;
+  document.getElementById("merchantModal").classList.remove("hidden");
+};
+
+function showMerchantConfirmModal(candidate, current) {
+  state.paused = true;
+  document.getElementById("merchantConfirmBody").innerHTML = `
+    ${gearCardHtml("当前", current)}
+    ${gearCardHtml("新灵器", candidate)}
+    ${gearSynergyImpactHtml(candidate, current)}
+  `;
+  document.getElementById("merchantConfirmModal").classList.remove("hidden");
+}
+
+function hideMerchantConfirmModal() {
+  document.getElementById("merchantConfirmModal")?.classList.add("hidden");
+}
+
+function confirmMerchantPurchase() {
+  const item = state.pendingMerchantPurchase;
+  if (!item) return;
+  if (!spendCoins(item.purchasePrice || item.price || 30, `购买${item.name}`)) return;
+  state.pendingMerchantPurchase = item;
+  receiveEquipment(item);
+  afterMerchantPurchase(item);
+}
+
+function cancelMerchantPurchase() {
+  state.pendingMerchantPurchase = null;
+  hideMerchantConfirmModal();
+  if (state.merchantState.active) showMerchantModal();
+  updateUi();
 }
 
 function showGearModal(uid) {
@@ -2792,6 +3402,14 @@ function showSummaryModal() {
     `开启灵匣 ${spiritStats.chests || 0} 次`,
     `未使用 ${spiritStats.unused || 0}`
   ].join(" / ");
+  const coinStats = state.result.coinStats || {};
+  const coinStatsText = `获得 ${coinStats.earned || 0} / 花费 ${coinStats.spent || 0} / 刷新 ${coinStats.refreshed || 0} 次 / 锁定 ${coinStats.locked || 0} 次 / 未用 ${coinStats.unused || 0}`;
+  const boughtVessels = state.result.boughtVessels?.length
+    ? state.result.boughtVessels.map(item => `${item.name}(${item.slot})`).join(" / ")
+    : "本局未购买灵器";
+  const blueprints = state.result.blueprintUnlocks?.length
+    ? state.result.blueprintUnlocks.map(item => item.name).join(" / ")
+    : "本局未获得新器谱";
   document.getElementById("summaryBody").innerHTML = `
     <div class="equipment-card"><strong>战斗结果</strong><span>存活 ${state.result.survival} · 击杀 ${state.result.kills} · 职业经验 +${state.result.classXp}</span></div>
     <div class="equipment-card"><strong>构筑复盘</strong><span>主流派 ${state.result.mainBuild} · 最高输出来源 ${state.result.output}</span></div>
@@ -2803,7 +3421,10 @@ function showSummaryModal() {
     <div class="equipment-card"><strong>契约收益与代价</strong><span>${pactStats}</span></div>
     <div class="equipment-card"><strong>契约统计</strong><span>${pactRuntimeText}</span></div>
     <div class="equipment-card"><strong>灵机统计</strong><span>${spiritStatsText}</span></div>
-    <div class="equipment-card"><strong>装备亮点</strong><span>${gear}</span></div>
+    <div class="equipment-card"><strong>铸币统计</strong><span>${coinStatsText}</span></div>
+    <div class="equipment-card"><strong>本局购买灵器</strong><span>${boughtVessels}</span></div>
+    <div class="equipment-card"><strong>器谱解锁</strong><span>${blueprints}</span></div>
+    <div class="equipment-card"><strong>灵器亮点</strong><span>${gear}</span></div>
     <div class="equipment-card"><strong>关键节点</strong><span>${events}</span></div>
   `;
   document.getElementById("summaryModal").classList.remove("hidden");
@@ -2816,9 +3437,24 @@ function hideSummaryModal() {
 function renderRelicStatus() {
   const container = document.getElementById("relicStatus");
   container.innerHTML = "";
-  state.equippedRelics.forEach(id => {
+  const progress = getNextRelicLoadProgress();
+  if (progress) {
+    const progressCard = document.createElement("div");
+    progressCard.className = `relic-card ${progress.full ? "ready" : ""}`;
+    progressCard.innerHTML = `<strong>${progress.full ? "法宝已满" : "下一法宝"}</strong><span>${progress.full ? "所有可用法宝格已装填" : `${progress.current} / ${progress.target}`}</span>`;
+    container.appendChild(progressCard);
+  }
+  for (let i = 0; i < (DATA.RELIC_LOAD_CONFIG?.slots || 2); i += 1) {
+    const id = state.equippedRelics[i];
+    if (!id) {
+      const card = document.createElement("div");
+      card.className = "relic-card empty";
+      card.innerHTML = `<strong>法宝格 ${i + 1}</strong><span>等待装填</span>`;
+      container.appendChild(card);
+      continue;
+    }
     const relic = getRelic(id);
-    if (!relic) return;
+    if (!relic) continue;
     const activeCd = state.activeRelicCooldowns[id] || 0;
     const autoCd = state.relicTimers[id] || 0;
     const cd = relic.trigger === "active" ? activeCd : autoCd;
@@ -2828,6 +3464,57 @@ function renderRelicStatus() {
     const card = document.createElement("div");
     card.className = `relic-card ${cd <= 0 ? "ready" : ""}`;
     card.innerHTML = `<strong>${relic.name}</strong><span>${relic.skillName || relic.type} · ${label}</span>`;
+    container.appendChild(card);
+  }
+}
+
+function getNextRelicLoadProgress() {
+  const config = DATA.RELIC_LOAD_CONFIG;
+  const slots = config?.slots || 2;
+  if (state.equippedRelics.length >= slots) return { full: true };
+  const thresholds = config?.thresholds || [50, 150, 300, 600];
+  const target = thresholds[state.equippedRelics.length] || thresholds[thresholds.length - 1];
+  return { current: Math.min(state.kills, target), target };
+}
+
+renderRelicStatus = function() {
+  const container = document.getElementById("relicStatus");
+  container.innerHTML = "";
+  for (let i = 0; i < (DATA.RELIC_LOAD_CONFIG?.slots || 2); i += 1) {
+    const id = state.equippedRelics[i];
+    if (!id) {
+      const card = document.createElement("div");
+      card.className = "relic-card empty";
+      card.innerHTML = `<strong>法宝格 ${i + 1}</strong><span>等待装填</span>`;
+      container.appendChild(card);
+      continue;
+    }
+    const relic = getRelic(id);
+    if (!relic) continue;
+    const activeCd = state.activeRelicCooldowns[id] || 0;
+    const autoCd = state.relicTimers[id] || 0;
+    const cd = relic.trigger === "active" ? activeCd : autoCd;
+    const label = relic.trigger === "active"
+      ? cd > 0 ? `${Math.ceil(cd)} 秒` : "空格释放"
+      : cd > 0 ? `${Math.ceil(cd)} 秒` : "即将触发";
+    const card = document.createElement("div");
+    card.className = `relic-card ${cd <= 0 ? "ready" : ""}`;
+    card.innerHTML = `<strong>${relic.name}</strong><span>${relic.skillName || relic.type} · ${label}</span>`;
+    container.appendChild(card);
+  }
+};
+
+function renderVesselStatus() {
+  const container = document.getElementById("vesselStatus");
+  if (!container) return;
+  container.innerHTML = "";
+  DATA.EQUIPMENT_SLOTS.forEach(slot => {
+    const item = state.runVessels[slot];
+    const card = document.createElement("div");
+    card.className = `relic-card ${item ? "ready" : "empty"}`;
+    card.innerHTML = item
+      ? `<strong>${slot} · ${item.name}</strong><span>${item.quality} · ${item.main}</span>`
+      : `<strong>${slot}</strong><span>空位，商人处购买装填</span>`;
     container.appendChild(card);
   });
 }
@@ -2935,20 +3622,44 @@ function handleGearAction(action, uid) {
   renderBuildSummary();
 }
 
+function renderBlueprintManagement() {
+  const container = document.getElementById("gearManageList");
+  container.innerHTML = "";
+  const unlocked = getUnlockedEquipment();
+  const locked = DATA.EQUIPMENT.filter(item => !state.unlockedBlueprintIds.has(item.id));
+  const intro = document.createElement("div");
+  intro.className = "equipment-card";
+  intro.innerHTML = `<strong>器谱图鉴</strong><span>已解锁 ${unlocked.length}/${DATA.EQUIPMENT.length}。器谱是永久解锁项，不是局外穿戴装备；局内由灵器商人刷新出售。</span>`;
+  container.appendChild(intro);
+  [...unlocked, ...locked].forEach(item => {
+    const card = document.createElement("div");
+    const isUnlocked = state.unlockedBlueprintIds.has(item.id);
+    card.className = `equipment-card ${isUnlocked ? "" : "empty"}`;
+    card.innerHTML = `
+      <strong>${isUnlocked ? item.name : "未解锁器谱"}</strong>
+      <span>${isUnlocked ? `${item.quality}${item.slot} · ${item.price || 30} 铸币 · ${item.main}` : `${item.slot} · 击败怪物、精英、Boss 或风险事件可解锁。`}</span>
+      <span>${isUnlocked ? item.special : "解锁后今后可在局内装备商店中刷新出现。"}</span>
+    `;
+    container.appendChild(card);
+  });
+}
+
+renderGearManagement = renderBlueprintManagement;
+
 function renderRelicManagement() {
   const container = document.getElementById("relicManageList");
   container.innerHTML = "";
   DATA.RELICS.forEach(relic => {
     const progress = state.relicProgress[relic.id];
-    const selected = state.equippedRelics.includes(relic.id);
+    const preferred = state.preferredRelic === relic.id;
     const card = document.createElement("div");
-    card.className = "equipment-card";
+    card.className = `equipment-card ${preferred ? "selected" : ""}`;
     card.innerHTML = `
-      <strong>${relic.name}${selected ? " · 已带入" : ""}</strong>
+      <strong>${relic.name}${preferred ? " · 偏好" : ""}</strong>
       <span>${relic.type} · Lv.${progress.level} · ${progress.star}星</span>
       <span>${relic.tags.join(" / ")}</span>
       <div class="card-actions">
-        <button data-action="select" data-id="${relic.id}">${selected ? "卸下" : "带入"}</button>
+        <button data-action="select" data-id="${relic.id}">${preferred ? "已设偏好" : "设为偏好"}</button>
         <button data-action="level" data-id="${relic.id}">升级</button>
         <button data-action="star" data-id="${relic.id}">升星</button>
       </div>
@@ -2964,14 +3675,8 @@ function handleRelicAction(action, id) {
   const progress = state.relicProgress[id];
   const relic = getRelic(id);
   if (action === "select") {
-    if (state.equippedRelics.includes(id)) {
-      if (state.equippedRelics.length > 1) state.equippedRelics = state.equippedRelics.filter(item => item !== id);
-    } else if (state.equippedRelics.length < 2) {
-      state.equippedRelics.push(id);
-    } else {
-      state.equippedRelics[1] = id;
-    }
-    logEvent("法宝选择", state.equippedRelics.map(item => getRelic(item)?.name).join(" / "));
+    state.preferredRelic = id;
+    logEvent("偏好法宝", relic?.name || id);
   }
   if (action === "level") {
     if (state.jade < 80) return showCommerceModal("灵石不足", "法宝升级需要灵石，可通过试炼结算获得，也可点击法宝养成包。", "法宝养成包");
@@ -3047,11 +3752,16 @@ function updateUi() {
   document.getElementById("levelText").textContent = state.level;
   document.getElementById("killsText").textContent = state.kills;
   document.getElementById("hpText").textContent = Math.max(0, Math.ceil(state.hp + state.shield));
+  const coinText = document.getElementById("coinText");
+  if (coinText) coinText.textContent = state.coins;
   document.getElementById("spiritText").textContent = state.spirit;
+  const relicProgress = getNextRelicLoadProgress();
+  document.getElementById("relicLoadProgressText").textContent = relicProgress?.full ? "法宝已满" : `${relicProgress.current} / ${relicProgress.target}`;
   document.getElementById("jadeText").textContent = state.jade;
   document.getElementById("rerollText").textContent = state.rerollStone;
   document.getElementById("starText").textContent = state.starSand;
   renderRelicStatus();
+  renderVesselStatus();
   renderPrepSummary();
   renderEquipment();
   renderCandidateGear();
@@ -3112,7 +3822,7 @@ document.addEventListener("keydown", event => {
   }
   if (event.code === "KeyE") {
     if (event.preventDefault) event.preventDefault();
-    openBestCandidateGear();
+    openMerchant();
   }
 });
 document.addEventListener("keyup", event => keys.delete(event.code));
@@ -3126,6 +3836,10 @@ document.getElementById("openChestBtn").addEventListener("click", openSpiritChes
 document.getElementById("upgradeRerollBtn").addEventListener("click", rerollChoices);
 document.getElementById("equipCandidateBtn").addEventListener("click", () => replaceWithCandidate());
 document.getElementById("keepCandidateBtn").addEventListener("click", keepCandidate);
+document.getElementById("closeMerchantBtn").addEventListener("click", closeMerchant);
+document.getElementById("merchantRefreshBtn").addEventListener("click", refreshMerchantOffers);
+document.getElementById("confirmMerchantBuyBtn").addEventListener("click", confirmMerchantPurchase);
+document.getElementById("cancelMerchantBuyBtn").addEventListener("click", cancelMerchantPurchase);
 document.getElementById("skipPactBtn").addEventListener("click", rejectPact);
 document.getElementById("closeSummaryBtn").addEventListener("click", hideSummaryModal);
 document.getElementById("summaryAgainBtn").addEventListener("click", resetRun);
@@ -3175,6 +3889,7 @@ clearUpgradeChoices();
 renderLoot();
 renderBuildSummary();
 renderRelicStatus();
+renderVesselStatus();
 renderPrepSummary();
 renderEquipment();
 renderCandidateGear();

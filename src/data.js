@@ -120,7 +120,7 @@ window.GAME_DATA = {
     { id: "treasure_surge_adv", name: "福缘成势", desc: "刷宝流成型后，掉落和法宝灵息收益提升。", type: "advanced", requiresTags: ["掉落"], tags: ["掉落", "灵宝"], effects: { dropRate: 0.12, relicHaste: 0.12 } }
   ],
 
-  EQUIPMENT_SLOTS: ["武器", "护符", "戒指", "法袍", "灵靴", "玉佩"],
+  EQUIPMENT_SLOTS: ["兵器", "灵佩", "护符"],
 
   EQUIPMENT: [
     { id: "qf_sword", name: "青锋剑", skillName: "宽剑气", triggerText: "每第 5 次飞剑触发", slot: "武器", quality: "精良", main: "攻击 +12%", sub: ["飞剑穿透 +1"], special: "适合剑修穿透", mechanic: "飞剑基础穿透 +1；每第 5 次飞剑变为宽剑气。", tags: ["剑修", "穿透"], score: 42, stats: { attackPct: 0.12, pierce: 1, wideSwordEvery: 5 } },
@@ -180,6 +180,14 @@ window.GAME_DATA = {
     relicBoosts: ["qf_box", "thunder_pearl", "gourd", "fire_pearl"]
   },
 
+  RELIC_LOAD_CONFIG: {
+    slots: 2,
+    thresholds: [50, 150, 300, 600],
+    first: { kills: 50 },
+    second: { kills: 150 },
+    choices: 3
+  },
+
   ENEMIES: [
     { id: "spirit", name: "游魂", role: "normal", behavior: "swarm", hp: 18, damage: 6, speed: 90, xp: 1, color: "#8b5e57" },
     { id: "runner", name: "疾妖", role: "normal", behavior: "runner", hp: 14, damage: 5, speed: 165, xp: 1, color: "#c46f55" },
@@ -203,7 +211,7 @@ window.GAME_DATA = {
   SHOP_ITEMS: [
     ["月卡", "每日灵石、少量洗练石、每周少量星砂。"],
     ["首充礼包", "职业皮肤、灵石、少量洗练石和星砂。"],
-    ["洗练礼包", "补充洗练石和灵石，增加副词条尝试次数。"],
+    ["灵石补给包", "补充灵石，用于法宝养成与职业成长验证。"],
     ["法宝养成包", "提供灵石和少量星砂，用于法宝升级/升星。"]
   ],
 

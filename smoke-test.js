@@ -52,15 +52,15 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
   assert(html.includes(`id="${id}"`), `Missing DOM mount: ${id}`);
 });
 
-["relicStatus", "upgradeModal", "modalUpgradeChoices", "upgradeRerollBtn", "lockedUpgradeHint", "spiritText", "openChestBtn"].forEach(id => {
+["relicStatus", "vesselStatus", "upgradeModal", "modalUpgradeChoices", "upgradeRerollBtn", "lockedUpgradeHint", "spiritText", "relicLoadProgressText", "openChestBtn"].forEach(id => {
   assert(html.includes(`id="${id}"`), `Missing slice 2 DOM mount: ${id}`);
 });
 
-["equipmentGrid", "candidateGearList", "gearModal", "gearCompareBody", "summaryModal", "summaryBody"].forEach(id => {
+["equipmentGrid", "candidateGearList", "gearModal", "gearCompareBody", "merchantModal", "merchantGoods", "merchantConfirmModal", "merchantConfirmBody", "coinText", "summaryModal", "summaryBody"].forEach(id => {
   assert(html.includes(`id="${id}"`), `Missing slice 4 DOM mount: ${id}`);
 });
 
-["gearManageList", "relicManageList", "classProgressList", "eventLogList", "commerceModal", "commerceBody", "pactModal", "pactChoices", "skipPactBtn", "chestModal", "chestChoices"].forEach(id => {
+["gearManageList", "relicManageList", "classProgressList", "eventLogList", "commerceModal", "commerceBody", "pactModal", "pactChoices", "skipPactBtn", "relicLoadModal", "relicLoadChoices", "chestModal", "chestChoices"].forEach(id => {
   assert(html.includes(`id="${id}"`), `Missing slice 5 DOM mount: ${id}`);
 });
 
@@ -68,11 +68,11 @@ const roleCommunication = read("ROLE_COMMUNICATION.md");
   assert(html.includes(text), `Missing script load: ${text}`);
 });
 
-["GAME_DATA", "CLASSES", "RELICS", "UPGRADES", "EQUIPMENT", "SYNERGIES", "PACT_OPTIONS", "SPIRIT_CHEST", "ENEMIES", "EVENTS", "SHOP_ITEMS", "TRIAL_MODES"].forEach(text => {
+["GAME_DATA", "CLASSES", "RELICS", "UPGRADES", "EQUIPMENT", "SYNERGIES", "PACT_OPTIONS", "SPIRIT_CHEST", "RELIC_LOAD_CONFIG", "ENEMIES", "EVENTS", "SHOP_ITEMS", "TRIAL_MODES"].forEach(text => {
   assert(dataJs.includes(text), `Missing data table: ${text}`);
 });
 
-["剑修", "雷修", "月卡", "首充礼包", "洗练礼包", "法宝养成包"].forEach(text => {
+["剑修", "雷修", "月卡", "首充礼包", "灵石补给包", "法宝养成包"].forEach(text => {
   assert(dataJs.includes(text), `Missing gameplay or monetization content: ${text}`);
 });
 
@@ -87,7 +87,7 @@ assert(data.CLASSES.length >= 2, "Expected at least 2 classes");
 assert(data.TRIAL_MODES.length >= 2, "Expected standard and quick trial modes");
 assert(data.RELICS.length >= 6, "Expected at least 6 relics");
 assert(data.UPGRADES.length >= 42, "Expected at least 42 upgrades after pool expansion");
-assert(data.EQUIPMENT_SLOTS.length >= 6, "Expected at least 6 equipment slots");
+assert(data.EQUIPMENT_SLOTS.length >= 3, "Expected at least 3 equipment slots");
 assert(data.EQUIPMENT.length >= 12, "Expected at least 12 equipment samples");
 assert(data.EVENTS.length >= 6, "Expected at least 6 events");
 assert(data.ENEMIES.filter(item => item.role === "normal").length >= 5, "Expected at least 5 normal enemies");
@@ -100,7 +100,7 @@ data.RELICS.forEach(relic => {
   assert(!relic.tags.every(tag => relicClassTags.has(tag)), `Relic must not bind to a single class: ${relic.name}`);
 });
 
-["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showPactModal", "acceptPact", "rejectPact", "offerPacts", "openSpiritChest", "showChestModal", "chooseChestReward", "lockUpgrade", "gainSpirit", "spendSpirit", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "rewardQueue", "gearPopupCount", "shouldForceGearPopup", "isUpgradeAllowedForClass", "isUpgradeAvailable", "upgradeLevels", "skillNotice", "trackSkillStat", "showSkillNotice", "relicSkillStats", "gearSkillStats", "activeSynergies", "evaluateSynergies", "getNearSynergies", "getEquipmentSynergyImpact", "gearSynergyImpactHtml", "triggerSynergy", "addSynergyBlast", "PACT_OPTIONS", "SPIRIT_CHEST", "acceptedPacts", "pactStats", "pactRuntime", "spiritStats", "freeUpgradeRerolls", "lockedUpgrade", "已锁定，下次升级出现", "本次不能直接选择", "灵机统计", "灵匣开启", "反噬雷", "契约收益与代价", "bellFirePending", "bloodRelicLeech", "swordRainTimer", "九霄雷狱", "血葫护体", "灵契觉醒", "升级跳过", "openBestCandidateGear", "guaranteedShadowTimer", "relicEmpoweredAttack", "strengthSources", "wideSwordEvery", "thunderStaffArc", "KeyE", "KeyW", "ArrowUp"].forEach(text => {
+["updateMovement", "fireSword", "fireThunder", "spawnEnemy", "triggerActiveRelic", "showUpgradeModal", "updateSchedule", "spawnWarning", "enemyProjectiles", "hazards", "receiveEquipment", "showGearModal", "showPactModal", "acceptPact", "rejectPact", "offerPacts", "offerRelicLoad", "pickRelicLoadChoices", "showRelicLoadModal", "chooseRelicLoad", "loadRelic", "openSpiritChest", "showChestModal", "chooseChestReward", "lockUpgrade", "gainSpirit", "spendSpirit", "showSummaryModal", "createRunResult", "renderGearManagement", "renderRelicManagement", "renderClassProgress", "logEvent", "showCommerceModal", "setScreen", "canvasPoint", "mouseMove", "spawnPickup", "floatTexts", "rewardQueue", "gearPopupCount", "shouldForceGearPopup", "isUpgradeAllowedForClass", "isUpgradeAvailable", "upgradeLevels", "skillNotice", "trackSkillStat", "showSkillNotice", "relicSkillStats", "gearSkillStats", "activeSynergies", "evaluateSynergies", "getNearSynergies", "getEquipmentSynergyImpact", "gearSynergyImpactHtml", "triggerSynergy", "addSynergyBlast", "nearestEnemyInRadius", "getThunderSourceRadius", "THUNDER_SOURCE_RADIUS", "getNextRelicLoadProgress", "isRelicGear", "getEquipmentDropPool", "thunderChainRadius", "relicLoadProgressText", "PACT_OPTIONS", "SPIRIT_CHEST", "RELIC_LOAD_CONFIG", "acceptedPacts", "pactStats", "pactRuntime", "spiritStats", "freeUpgradeRerolls", "lockedUpgrade", "relicLoadOffered", "preferredRelic", "等待装填", "下一法宝", "法宝已满", "适合法宝路线，装填相关法宝后价值提高", "飞剑贯穿 +1", "法宝装填", "本局法宝将在试炼中逐步装填", "已锁定，下次升级出现", "本次不能直接选择", "灵机统计", "灵匣开启", "反噬雷", "契约收益与代价", "bellFirePending", "bloodRelicLeech", "swordRainTimer", "九霄雷狱", "血葫护体", "灵契觉醒", "升级跳过", "openBestCandidateGear", "guaranteedShadowTimer", "relicEmpoweredAttack", "strengthSources", "wideSwordEvery", "thunderStaffArc", "KeyE", "KeyW", "ArrowUp"].forEach(text => {
   assert(js.includes(text), `Missing combat implementation marker: ${text}`);
 });
 
@@ -123,6 +123,11 @@ assert(data.SPIRIT_CHEST.rareUpgrades.length >= 4, "Expected 4 spirit chest rare
 assert(data.SPIRIT_CHEST.pacts.length >= 4, "Expected 4 spirit chest pacts");
 assert(data.SPIRIT_CHEST.gear.length >= 4, "Expected 4 spirit chest gear rewards");
 assert(data.SPIRIT_CHEST.relicBoosts.length >= 4, "Expected 4 spirit chest relic boosts");
+assert(data.RELIC_LOAD_CONFIG.slots === 2, "Expected 2 relic load slots");
+assert(data.RELIC_LOAD_CONFIG.thresholds[0] === 50, "Expected first relic load at 50 kills");
+assert(data.RELIC_LOAD_CONFIG.thresholds[1] === 150, "Expected second relic load at 150 kills");
+assert(data.RELIC_LOAD_CONFIG.thresholds[2] === 300, "Expected third future relic load threshold");
+assert(data.RELIC_LOAD_CONFIG.thresholds[3] === 600, "Expected fourth future relic load threshold");
 
 ["不再沿用塔防", "刷宝BD", "职业能力提升触发途径", "8 分钟固定节奏", "MVP数据目标", "下一版网页原型验收标准", "4 分钟快速测试模式"].forEach(text => {
   assert(design.includes(text), `Missing design note: ${text}`);
@@ -202,6 +207,7 @@ const elementIds = [
   "classProgressList",
   "eventLogList",
   "relicStatus",
+  "vesselStatus",
   "upgradeModal",
   "upgradeHint",
   "lockedUpgradeHint",
@@ -209,10 +215,23 @@ const elementIds = [
   "gearModal",
   "gearHint",
   "gearCompareBody",
+  "merchantModal",
+  "merchantTitle",
+  "merchantHint",
+  "merchantGoods",
+  "merchantRefreshBtn",
+  "merchantConfirmModal",
+  "merchantConfirmTitle",
+  "merchantConfirmHint",
+  "merchantConfirmBody",
   "pactModal",
   "pactTitle",
   "pactHint",
   "pactChoices",
+  "relicLoadModal",
+  "relicLoadTitle",
+  "relicLoadHint",
+  "relicLoadChoices",
   "chestModal",
   "chestTitle",
   "chestHint",
@@ -229,7 +248,9 @@ const elementIds = [
   "levelText",
   "killsText",
   "hpText",
+  "coinText",
   "spiritText",
+  "relicLoadProgressText",
   "jadeText",
   "rerollText",
   "starText",
@@ -243,6 +264,9 @@ const elementIds = [
   "upgradeRerollBtn",
   "equipCandidateBtn",
   "keepCandidateBtn",
+  "closeMerchantBtn",
+  "confirmMerchantBuyBtn",
+  "cancelMerchantBuyBtn",
   "skipPactBtn",
   "closeSummaryBtn",
   "summaryAgainBtn",
@@ -341,9 +365,54 @@ elements.startBtn.click();
 sandbox.update(1.1);
 assert(elements.timeText.textContent !== "00:00", "Runtime smoke did not advance the run timer");
 assert(Number(elements.hpText.textContent) > 0, "Runtime smoke did not render player HP");
-sandbox.receiveEquipment({ ...data.EQUIPMENT[0], uid: "test-gear-1", source: "smoke" });
-sandbox.receiveEquipment({ ...data.EQUIPMENT[1], uid: "test-gear-2", source: "smoke" });
+const runtimeEquipment = sandbox.GAME_DATA.EQUIPMENT;
+sandbox.receiveEquipment({ ...runtimeEquipment[0], uid: "test-gear-1", source: "smoke" });
+sandbox.receiveEquipment({ ...runtimeEquipment.find(item => item.slot !== runtimeEquipment[0].slot), uid: "test-gear-2", source: "smoke" });
 assert(elements.equipmentGrid.children.some(child => child.innerHTML.includes("青锋剑")), "Runtime smoke did not render equipped gear");
+const merchantFlow = vm.runInContext(`
+  state.coins = 999;
+  function runMerchantCycle(kills, time, staleReward = null) {
+    state.kills = kills;
+    state.time = time;
+    updateMerchantEncounter();
+    if (staleReward) state.activeReward = staleReward;
+    const onlyUnlocked = state.merchantState.offers.every(item => state.unlockedBlueprintIds.has(item.id));
+    const uid = state.merchantState.offers[0]?.uid;
+    openMerchant();
+    const opened = state.paused && state.merchantState.active && state.merchantState.offers.length === 4 && !!uid;
+    buyMerchantOffer(uid);
+    if (state.pendingMerchantPurchase) confirmMerchantPurchase();
+    return {
+      onlyUnlocked,
+      opened,
+      purchased: !state.paused && !state.merchantState.active && !state.pendingMerchantPurchase,
+      noticeCleared: !state.gearNotice,
+      count: state.merchantState.count
+    };
+  }
+  const first = runMerchantCycle(80, 105);
+  const second = runMerchantCycle(220, 240);
+  const third = runMerchantCycle(420, 390, { type: "upgrade", stale: true });
+  ({
+    first,
+    second,
+    third,
+    vesselCount: Object.keys(state.runVessels).length
+  });
+`, sandbox);
+assert(merchantFlow.first.onlyUnlocked, "First merchant offered locked blueprint items");
+assert(merchantFlow.first.opened, "First merchant did not open");
+assert(merchantFlow.first.purchased, "First merchant purchase did not resume the run");
+assert(merchantFlow.first.noticeCleared, "First merchant notice was not cleared after purchase");
+assert(merchantFlow.second.onlyUnlocked, "Second merchant offered locked blueprint items");
+assert(merchantFlow.second.opened, "Second merchant did not open after first purchase");
+assert(merchantFlow.second.purchased, "Second merchant purchase did not resume the run");
+assert(merchantFlow.second.noticeCleared, "Second merchant notice was not cleared after purchase");
+assert(merchantFlow.third.onlyUnlocked, "Third merchant offered locked blueprint items");
+assert(merchantFlow.third.opened, "Third merchant did not open after second purchase");
+assert(merchantFlow.third.purchased, "Third merchant purchase did not resume the run");
+assert(merchantFlow.third.noticeCleared, "Third merchant notice was not cleared after purchase");
+assert(merchantFlow.vesselCount > 0, "Merchant purchases did not leave any run vessels equipped");
 sandbox.endRun("manual");
 assert(elements.summaryBody.innerHTML.includes("战斗结果"), "Runtime smoke did not render summary");
 

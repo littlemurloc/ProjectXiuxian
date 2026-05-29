@@ -49,9 +49,12 @@
             <div><span>等级</span><strong id="levelText">1</strong></div>
             <div><span>击杀</span><strong id="killsText">0</strong></div>
             <div><span>生命</span><strong id="hpText">100</strong></div>
+            <div><span>铸币</span><strong id="coinText">0</strong></div>
             <div class="spirit-hud" title="本局临时资源，可用于刷新升级、锁定升级或开启灵匣。结算后清空。"><span>灵机</span><strong id="spiritText">0</strong></div>
+            <div class="relic-load-hud"><span>下一法宝</span><strong id="relicLoadProgressText">0 / 50</strong></div>
           </div>
-          <div id="relicStatus" class="relic-status" aria-label="携带法宝状态"></div>
+          <div id="relicStatus" class="relic-status" aria-label="本局装填法宝状态"></div>
+          <div id="vesselStatus" class="relic-status" aria-label="本局灵器状态"></div>
           <canvas id="gameCanvas" width="960" height="540" aria-label="灵宝试炼战斗画面"></canvas>
           <div id="gearNotice" class="gear-notice hidden"></div>
           <div class="controls">
@@ -75,28 +78,28 @@
         <aside class="rightbar">
           <div class="tabs growth-only" role="tablist" aria-label="局外养成导航">
             <button class="tab active" data-panel="build">构筑</button>
-            <button class="tab" data-panel="gear">装备</button>
+            <button class="tab" data-panel="gear">器谱</button>
             <button class="tab" data-panel="relics">法宝</button>
             <button class="tab" data-panel="classes">职业</button>
           </div>
           <section id="playPanel" class="panel page-panel battle-panel active">
             <h2>本局选择</h2>
             <div id="upgradeChoices" class="choice-list"></div>
-            <h2>掉落装备</h2>
+            <h2>局内资源</h2>
             <div id="lootList" class="loot-list"></div>
-            <h2>候选装备</h2>
+            <h2>灵器商人</h2>
             <div id="candidateGearList" class="loot-list"></div>
           </section>
 
           <section id="buildPanel" class="panel page-panel growth-panel">
             <h2>当前构筑</h2>
             <div id="buildSummary" class="build-list"></div>
-            <h2>已装备</h2>
+            <h2>本局灵器</h2>
             <div id="equipmentGrid" class="equipment-grid"></div>
           </section>
 
           <section id="gearPanel" class="panel page-panel growth-panel">
-            <h2>局外装备</h2>
+            <h2>器谱图鉴</h2>
             <div id="gearManageList" class="equipment-grid"></div>
           </section>
 
@@ -155,6 +158,38 @@
       </div>
     </div>
 
+    <div id="merchantModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="merchantTitle">
+      <div class="modal-panel pact-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="merchantTitle">灵器商人</h2>
+            <p id="merchantHint">本局铸币购买临时灵器；灵器结算后清空，器谱解锁会永久保留。</p>
+          </div>
+          <button id="closeMerchantBtn">关闭</button>
+        </div>
+        <div id="merchantGoods" class="pact-grid"></div>
+        <div class="controls">
+          <button id="merchantRefreshBtn">刷新商品</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="merchantConfirmModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="merchantConfirmTitle">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="merchantConfirmTitle">替换本局灵器</h2>
+            <p id="merchantConfirmHint">同槽位只能装填 1 件，替换只影响本局。</p>
+          </div>
+        </div>
+        <div id="merchantConfirmBody" class="compare-grid"></div>
+        <div class="controls">
+          <button id="confirmMerchantBuyBtn" class="primary">确认替换</button>
+          <button id="cancelMerchantBuyBtn">取消</button>
+        </div>
+      </div>
+    </div>
+
     <div id="pactModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="pactTitle">
       <div class="modal-panel pact-panel">
         <div class="modal-head">
@@ -167,6 +202,18 @@
         <div class="controls">
           <button id="skipPactBtn">放弃契约</button>
         </div>
+      </div>
+    </div>
+
+    <div id="relicLoadModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="relicLoadTitle">
+      <div class="modal-panel pact-panel">
+        <div class="modal-head">
+          <div>
+            <h2 id="relicLoadTitle">法宝装填</h2>
+            <p id="relicLoadHint">从局外法宝库中选择 1 件装入本局</p>
+          </div>
+        </div>
+        <div id="relicLoadChoices" class="pact-grid"></div>
       </div>
     </div>
 
@@ -194,8 +241,8 @@
         <div id="summaryBody" class="summary-grid"></div>
         <div class="controls">
           <button id="summaryAgainBtn" class="primary">再来一局</button>
-          <button id="summaryForgeBtn">强化装备</button>
-          <button id="summaryRerollBtn">洗练词条</button>
+          <button id="summaryForgeBtn">查看器谱</button>
+          <button id="summaryRerollBtn">查看职业</button>
           <button id="summaryRelicBtn">升级法宝</button>
         </div>
       </div>
